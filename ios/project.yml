@@ -1,0 +1,50 @@
+name: Draftwell
+options:
+  bundleIdPrefix: app.draftwell
+  deploymentTarget:
+    iOS: "15.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    TARGETED_DEVICE_FAMILY: "2"
+    MARKETING_VERSION: "1.0.0"
+    CURRENT_PROJECT_VERSION: "1"
+    ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+    ENABLE_BITCODE: NO
+    CODE_SIGN_STYLE: Automatic
+targets:
+  Draftwell:
+    type: application
+    platform: iOS
+    sources:
+      - path: Draftwell
+      - path: web
+        type: folder
+        buildPhase: resources
+    info:
+      path: Draftwell/Info.plist
+      properties:
+        CFBundleDisplayName: Draftwell
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSRequiresIPhoneOS: true
+        UILaunchScreen:
+          UIColorName: ""
+        UIRequiresFullScreen: false
+        UIStatusBarHidden: true
+        UIViewControllerBasedStatusBarAppearance: true
+        UIApplicationSupportsIndirectInputEvents: true
+        ITSAppUsesNonExemptEncryption: false
+        NSPhotoLibraryAddUsageDescription: Draftwell saves exported drawings to your photo library.
+        NSPhotoLibraryUsageDescription: Draftwell imports photos so you can draw over them.
+        NSCameraUsageDescription: Draftwell can take a photo to use as a reference image.
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.draftwell.sketch
+        INFOPLIST_FILE: Draftwell/Info.plist
