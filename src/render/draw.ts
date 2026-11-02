@@ -165,24 +165,22 @@ export function drawStroke(dc: DrawCtx, it: StrokeItem, overrideColor?: string, 
   const op = it.opacity * alphaMul;
   switch (def.style) {
     case 'solid':
-    case 'nib': {
-      ctx.globalAlpha = op;
+    case 'nib':
+    case 'marker': {
+      const mult = def.multiply || def.style === 'marker';
+      if (mult) { ctx.save(); ctx.globalCompositeOperation = 'multiply'; }
       ctx.fillStyle = color;
-      for (const g of ol.groups) ctx.fill(groupPath(g));
+      for (const g of ol.groups) {
+        ctx.globalAlpha = op * g.alpha;
+        ctx.fill(groupPath(g));
+      }
+      if (mult) ctx.restore();
       ctx.globalAlpha = 1;
       break;
     }
-    case 'marker': {
-      ctx.save();
-      ctx.globalCompositeOperation = 'multiply';
-      ctx.globalAlpha = op;
-      ctx.fillStyle = color;
-      for (const g of ol.groups) ctx.fill(groupPath(g));
-      ctx.restore();
-      break;
-    }
     case 'pencil': {
-      const pat = grainPattern(ctx, color, 0.75, Math.max(0.02, it.size / 10));
+      const grain = def.grain ?? 0.75;
+      const pat = grainPattern(ctx, color, grain, Math.max(0.02, it.size / (grain > 0.9 ? 6 : 10)));
       ctx.fillStyle = pat;
       for (const g of ol.groups) {
         ctx.globalAlpha = op * g.alpha;

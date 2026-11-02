@@ -2,7 +2,7 @@ import type { ToolPreset, Unit } from './types';
 import { BRUSHES } from './brushes';
 import { uid } from './geom';
 
-export type PencilDoubleTap = 'eraser' | 'last' | 'color' | 'none';
+export type PencilDoubleTap = 'eraser' | 'last' | 'color' | 'palette' | 'none';
 export type Theme = 'auto' | 'light' | 'dark';
 
 export interface Settings {
@@ -13,6 +13,7 @@ export interface Settings {
   longPressEyedropper: boolean;
   rotateCanvas: boolean;
   pencilDoubleTap: PencilDoubleTap;
+  pencilSqueeze: PencilDoubleTap;
   hoverPreview: boolean;
   theme: Theme;
   leftHanded: boolean;
@@ -42,6 +43,7 @@ export const DEFAULT_SETTINGS: Settings = {
   longPressEyedropper: true,
   rotateCanvas: true,
   pencilDoubleTap: 'eraser',
+  pencilSqueeze: 'palette',
   hoverPreview: true,
   theme: 'auto',
   leftHanded: false,
@@ -72,7 +74,8 @@ export function defaultPresets(): ToolPreset[] {
     opacity: opacity ?? BRUSHES[brush].defOpacity,
     smoothing: BRUSHES[brush].defSmoothing,
     pressureSize: true,
-    pressureOpacity: true,
+    pressureOpacity: !!BRUSHES[brush].pressureOpacity,
+    nibFollow: BRUSHES[brush].nibFollow,
   });
   return [
     mk('pen', '#1d1f24', 3),
@@ -82,6 +85,7 @@ export function defaultPresets(): ToolPreset[] {
     mk('brush', '#14161a', 12),
     mk('calligraphy', '#1d1f24', 12),
     mk('airbrush', '#5b8fd9', 70, 0.3),
+    mk('chisel', '#7fb2a8', 26, 0.55),
     mk('watercolor', '#e0745a', 40, 0.4),
     mk('softEraser', '#ffffff', 60, 0.6),
   ];

@@ -10,6 +10,7 @@ export interface Ptr {
   wy: number;
   p: number; // pressure 0..1 (curve applied)
   tilt: number; // 0 upright .. 1 flat
+  az: number | null; // pencil azimuth in screen space (radians), null if unknown
   type: 'pen' | 'touch' | 'mouse';
   t: number;
   shift?: boolean;
@@ -27,7 +28,7 @@ export interface AppCtx {
 
 export interface Tool {
   down(p: Ptr): void;
-  move(p: Ptr, batch: Ptr[]): void;
+  move(p: Ptr, batch: Ptr[], predicted?: Ptr[]): void;
   up(p: Ptr): void;
   cancel(): void;
   hover?(p: Ptr | null): void;

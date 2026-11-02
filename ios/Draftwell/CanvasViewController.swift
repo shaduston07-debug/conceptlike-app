@@ -7,6 +7,13 @@ final class CanvasViewController: UIViewController, WKScriptMessageHandlerWithRe
     private var webView: WKWebView!
     private let store = KVStore()
     private let io = DispatchQueue(label: "app.draftwell.io", qos: .userInitiated)
+    private var canvasFeedbackStorage: AnyObject?
+
+    @available(iOS 17.5, *)
+    private var canvasFeedback: UICanvasFeedbackGenerator? {
+        get { canvasFeedbackStorage as? UICanvasFeedbackGenerator }
+        set { canvasFeedbackStorage = newValue }
+    }
 
     override var prefersStatusBarHidden: Bool { true }
     override var prefersHomeIndicatorAutoHidden: Bool { true }
@@ -115,10 +122,19 @@ final class CanvasViewController: UIViewController, WKScriptMessageHandlerWithRe
             UIImageWriteToSavedPhotosAlbum(image, nil, nil, nil)
             replyHandler(true, nil)
         case "haptic":
-            switch body["kind"] as? String ?? "" {
-            case "select": UISelectionFeedbackGenerator().selectionChanged()
-            case "medium": UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-            default: UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            let kind = body["kind"] as? String ?? ""
+            let point = CGPoint(x: (body["x"] as? Double) ?? 0, y: (body["y"] as? Double) ?? 0)
+            if kind == "align" || kind == "path" {
+                // Apple Pencil Pro plays these in the pencil itself.
+                if #available(iOS 17.5, *) {
+                    let g = canvasFeedback ?? UICanvasFeedbackGenerator(view: view)
+                    canvasFeedback = g
+                    if kind == "align" { g.alignmentOccurred(at: point) } else { g.pathCompleted(at: point) }
+                }
+            } else if kind == "select" {
+                UISelectionFeedbackGenerator().selectionChanged()
+            } else {
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
             }
             replyHandler(true, nil)
         default:

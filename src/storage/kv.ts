@@ -109,7 +109,11 @@ export function blobToBase64(b: Blob): Promise<string> {
   });
 }
 
-export function haptic(kind: 'light' | 'medium' | 'select' = 'light') {
+/**
+ * Haptic feedback. On Apple Pencil Pro this is felt in the pencil (alignment ticks when
+ * strokes snap to shapes, guides or perspective); elsewhere it is a no-op.
+ */
+export function haptic(kind: 'align' | 'path' | 'light' | 'select' = 'light', x = 0, y = 0) {
   const n = native();
-  if (n) n.postMessage({ op: 'haptic', kind }).catch(() => {});
+  if (n) n.postMessage({ op: 'haptic', kind, x, y }).catch(() => {});
 }

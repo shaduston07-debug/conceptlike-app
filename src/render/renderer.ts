@@ -47,6 +47,8 @@ export class Renderer {
   private renderedView: Mat | null = null;
   private deferTimer = 0;
   private liveBox: Rect | null = null;
+  private lastLiveBox: Rect | null = null;
+  private prev: { layers: Layer[]; active: string; bg: unknown; persp: unknown; art: unknown } | null = null;
   private liveActive = false;
   private singleBuffer = false;
   private ro: ResizeObserver;
@@ -62,7 +64,13 @@ export class Renderer {
     this.ro = new ResizeObserver(() => this.resize());
     this.ro.observe(this.el);
     this.resize();
-    editor.on('doc', () => { this.markDocChanged(); this.requestFull(); });
+    editor.on('doc', () => {
+      this.markDocChanged();
+      if (this.tryAppendFast()) {
+        this.renderedDocVersion = this.docVersion;
+        this.requestOverlay();
+      } else this.requestFull();
+    });
     editor.on(['view', 'settings'], () => this.requestFull());
     editor.on(['overlay', 'ui'], () => this.requestOverlay());
     setImageLoadCallback(() => this.requestFull());
@@ -187,6 +195,7 @@ export class Renderer {
       this.active.style.opacity = al && al.visible ? String(al.opacity) : '0';
       this.active.style.mixBlendMode = al ? al.blend : 'normal';
     }
+    this.rememberDoc();
     this.renderedView = this.view.slice() as Mat;
     this.renderedDocVersion = this.docVersion;
     this.lastRenderMs = performance.now() - t0;
@@ -261,7 +270,65 @@ export class Renderer {
   }
   endLive() {
     this.liveActive = false;
+    this.lastLiveBox = this.liveBox;
     this.liveBox = null;
+  }
+
+  private rememberDoc() {
+    const d = this.editor.doc;
+    this.prev = { layers: d.layers, active: d.activeLayer, bg: d.background, persp: d.perspective, art: d.artboard };
+  }
+
+  /**
+   * Fast path for the most common edit: items appended to the active layer (a finished stroke,
+   * a paste, an insert). Only the new items are drawn instead of re-rendering every layer.
+   */
+  private tryAppendFast(): boolean {
+    const d = this.editor.doc;
+    const pv = this.prev;
+    const liveBox = this.lastLiveBox;
+    this.lastLiveBox = null;
+    if (!pv || this.fullPending || this.singleBuffer || this.editor.hidden.size) return false;
+    if (d.activeLayer !== pv.active || d.background !== pv.bg || d.perspective !== pv.persp || d.artboard !== pv.art) return false;
+    if (d.layers.length !== pv.layers.length) return false;
+    let added: Item[] | null = null;
+    for (let i = 0; i < d.layers.length; i++) {
+      const a = d.layers[i], b = pv.layers[i];
+      if (a === b) continue;
+      if (a.id !== d.activeLayer || a.id !== b.id || added) return false;
+      if (a.visible !== b.visible || a.opacity !== b.opacity || a.blend !== b.blend || a.locked !== b.locked) return false;
+      const n = b.items.length;
+      if (a.items.length <= n) return false;
+      if (n && (a.items[0] !== b.items[0] || a.items[n - 1] !== b.items[n - 1] || a.items[n >> 1] !== b.items[n >> 1])) return false;
+      added = a.items.slice(n);
+    }
+    if (!added) return false;
+    this.rememberDoc();
+    const layer = d.layers.find((l) => l.id === d.activeLayer)!;
+    const ctx = this.active.getContext('2d')!;
+    const m = this.deviceM;
+    if (liveBox) {
+      // remove the live preview, then draw the final (simplified) stroke in its place
+      const W = this.active.width, H = this.active.height;
+      const x0 = Math.max(0, Math.floor(liveBox.x0)), y0 = Math.max(0, Math.floor(liveBox.y0));
+      const x1 = Math.min(W, Math.ceil(liveBox.x1)), y1 = Math.min(H, Math.ceil(liveBox.y1));
+      if (x1 > x0 && y1 > y0) {
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.clearRect(x0, y0, x1 - x0, y1 - y0);
+        ctx.drawImage(this.backup, x0, y0, x1 - x0, y1 - y0, x0, y0, x1 - x0, y1 - y0);
+      }
+    }
+    if (layer.visible) {
+      const dc = { ctx, m };
+      for (const it of added) {
+        ctx.setTransform(m[0], m[1], m[2], m[3], m[4], m[5]);
+        drawItem(dc, it);
+      }
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.globalAlpha = 1;
+      ctx.globalCompositeOperation = 'source-over';
+    }
+    return true;
   }
   cancelLive() {
     if (!this.liveActive) return;

@@ -27,6 +27,7 @@ import { HistoryPanel } from './HistoryPanel';
 import { SelectionBar, TransformPanel } from './SelectionBar';
 import { TextEditor } from './TextEditor';
 import { ToolWheel } from './ToolWheel';
+import { QuickPalette } from './QuickPalette';
 import { copySelection, cutSelection, paste } from './clipboard';
 import { contentBounds, thumbnail } from '../export/raster';
 import { saveDoc } from '../storage/docs';
@@ -40,11 +41,12 @@ export function EditorView({ ed, onExit }: { ed: Editor; onExit: () => void }) {
   const [toasts, setToasts] = useState<{ id: number; msg: string }[]>([]);
   const [editPerspective, setEditPerspective] = useState(false);
   const [renaming, setRenaming] = useState(false);
+  const [palette, setPalette] = useState<{ x: number; y: number } | null>(null);
   const rendererRef = useRef<Renderer | null>(null);
   const inputRef = useRef<InputController | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [ready, setReady] = useState(false);
-  useEditor(ed, ['ui', 'history', 'settings', 'view']);
+  useEditor(ed, ['ui', 'history', 'settings', 'view', 'doc']);
 
   const setPanel = (p: PanelId) => setPanelRaw(p);
   const viewSize = () => ({ w: rendererRef.current?.w || window.innerWidth, h: rendererRef.current?.h || window.innerHeight });
@@ -102,6 +104,9 @@ export function EditorView({ ed, onExit }: { ed: Editor; onExit: () => void }) {
     const ic = new InputController(app, r.overlay, () => tools[ed.tool], () => {
       // finger tap on canvas in pencil-only mode closes panels
       setPanelRaw(null);
+    }, () => {
+      // touching the canvas dismisses transient popovers; docked panels stay open
+      setPanelRaw((p) => (p === 'layers' || p === 'precision' ? p : null));
     });
     inputRef.current = ic;
     // initial view
@@ -164,9 +169,14 @@ export function EditorView({ ed, onExit }: { ed: Editor; onExit: () => void }) {
     window.addEventListener('clipboard-action', onClip);
     window.addEventListener('zoom-fit', onFit);
     window.addEventListener('open-color', onColor);
-    window.addEventListener('pencil-squeeze', onColor);
+    const onPalette = (e: Event) => {
+      const d = (e as CustomEvent).detail as { x: number; y: number } | null;
+      const v = viewSize();
+      setPalette(d || { x: v.w / 2, y: v.h / 2 });
+    };
+    window.addEventListener('quick-palette', onPalette);
     return () => {
-      window.removeEventListener('pencil-squeeze', onColor);
+      window.removeEventListener('quick-palette', onPalette);
       window.removeEventListener('clipboard-action', onClip);
       window.removeEventListener('zoom-fit', onFit);
       window.removeEventListener('open-color', onColor);
@@ -283,13 +293,21 @@ export function EditorView({ ed, onExit }: { ed: Editor; onExit: () => void }) {
               <button class="ibtn" title="Redo" disabled={!ed.canRedo} onClick={() => ed.redo()}><Icon name="redo" /></button>
               <button class={'ibtn' + (panel === 'history' ? ' on' : '')} title="History" onClick={() => setPanel(panel === 'history' ? null : 'history')}><Icon name="history" /></button>
             </div>
+            <div class="pill">
+              <button class={'ibtn' + (s.liveShapes ? ' on' : '')} title="Live shapes" onClick={() => { ed.setSettings({ liveShapes: !s.liveShapes }); toast(s.liveShapes ? 'Live shapes off' : 'Live shapes on'); }}><Icon name="shape" /></button>
+              <button class={'ibtn' + (s.gridSnap ? ' on' : '')} title="Snap to grid" onClick={() => { ed.setSettings({ gridSnap: !s.gridSnap }); toast(s.gridSnap ? 'Grid snap off' : 'Grid snap on'); }}><Icon name="magnet" /></button>
+              <button class={'ibtn' + (s.measureOn ? ' on' : '')} title="Measure" onClick={() => ed.setSettings({ measureOn: !s.measureOn })}><Icon name="measure" /></button>
+            </div>
             <span class="spacer" />
             {ed.pencilDetected && s.pencilOnly !== 'off' && (
               <div class="pill"><span class="badge" title="Pencil-only drawing"><Icon name="pencilOnly" size={16} />Pencil</span></div>
             )}
             <div class="pill">
               <button class={'ibtn' + (panel === 'precision' ? ' on' : '') + (ed.doc.guide || ed.doc.perspective.mode !== 'none' ? ' on' : '')} title="Precision" onClick={() => setPanel(panel === 'precision' ? null : 'precision')}><Icon name="precision" /></button>
-              <button class={'ibtn' + (panel === 'layers' ? ' on' : '')} title="Layers" onClick={() => setPanel(panel === 'layers' ? null : 'layers')}><Icon name="layers" /></button>
+              <button class={'layer-chip' + (panel === 'layers' ? ' on' : '')} title="Layers" onClick={() => setPanel(panel === 'layers' ? null : 'layers')}>
+                <Icon name="layers" />
+                <span>{ed.activeLayer.name}</span>
+              </button>
               <button class={'ibtn' + (panel === 'library' ? ' on' : '')} title="Library" onClick={() => setPanel(panel === 'library' ? null : 'library')}><Icon name="library" /></button>
               <button class="ibtn" title="Import image" onClick={() => fileRef.current?.click()}><Icon name="image" /></button>
               <button class={'ibtn' + (panel === 'export' ? ' on' : '')} title="Export" onClick={() => setPanel(panel === 'export' ? null : 'export')}><Icon name="share" /></button>
@@ -342,6 +360,7 @@ export function EditorView({ ed, onExit }: { ed: Editor; onExit: () => void }) {
           {panel === 'history' && <HistoryPanel ed={ed} onClose={() => setPanel(null)} />}
           {panel === 'transform' && <TransformPanel ed={ed} onClose={() => setPanel(null)} />}
 
+          {palette && <QuickPalette ed={ed} x={palette.x} y={palette.y} w={viewSize().w} h={viewSize().h} onClose={() => setPalette(null)} />}
           {toasts.map((t) => <div key={t.id} class="toast">{t.msg}</div>)}
           <input ref={fileRef} type="file" accept="image/*,.draftwell,application/json" multiple style={{ display: 'none' }}
             onChange={(e) => { onFiles((e.target as HTMLInputElement).files); (e.target as HTMLInputElement).value = ''; }} />

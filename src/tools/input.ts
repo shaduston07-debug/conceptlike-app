@@ -34,8 +34,10 @@ export class InputController {
   private spaceDown = false;
   editPerspective = false;
   private lastPenTime = 0;
+  /** Last known pencil position (hover or contact), for palettes that open at the tip. */
+  lastPen: { x: number; y: number } | null = null;
 
-  constructor(private app: AppCtx, private el: HTMLElement, private getTool: () => Tool, private onViewTap?: () => void) {
+  constructor(private app: AppCtx, private el: HTMLElement, private getTool: () => Tool, private onViewTap?: () => void, private onCanvasDown?: () => void) {
     el.addEventListener('pointerdown', this.onDown, { passive: false });
     el.addEventListener('pointermove', this.onMove, { passive: false });
     el.addEventListener('pointerup', this.onUp, { passive: false });
@@ -52,12 +54,14 @@ export class InputController {
     window.addEventListener('keydown', this.onKey);
     window.addEventListener('keyup', this.onKeyUp);
     window.addEventListener('pencil-double-tap', this.onPencilDoubleTap as any);
+    window.addEventListener('pencil-squeeze', this.onPencilSqueeze as any);
   }
 
   destroy() {
     window.removeEventListener('keydown', this.onKey);
     window.removeEventListener('keyup', this.onKeyUp);
     window.removeEventListener('pencil-double-tap', this.onPencilDoubleTap as any);
+    window.removeEventListener('pencil-squeeze', this.onPencilSqueeze as any);
   }
 
   private get ed() { return this.app.editor; }
@@ -78,7 +82,11 @@ export class InputController {
       p = Math.pow(Math.max(0, Math.min(1, p)), g);
     } else if (type === 'touch') p = 0.55;
     let tilt = 0;
+    let az: number | null = null;
     if (type === 'pen') {
+      const ae = e as any;
+      if (typeof ae.azimuthAngle === 'number' && (ae.altitudeAngle ?? 1.57) < 1.45) az = ae.azimuthAngle;
+      else if (e.tiltX || e.tiltY) az = Math.atan2(e.tiltY, e.tiltX);
       const anyE = e as any;
       if (typeof anyE.altitudeAngle === 'number' && anyE.altitudeAngle > 0) tilt = 1 - anyE.altitudeAngle / (Math.PI / 2);
       else if (e.tiltX || e.tiltY) {
@@ -88,7 +96,7 @@ export class InputController {
       }
       tilt = Math.max(0, Math.min(1, (tilt - 0.25) / 0.6));
     }
-    return { x, y, wx: w.x, wy: w.y, p, tilt, type, t: e.timeStamp, shift: e.shiftKey, alt: e.altKey };
+    return { x, y, wx: w.x, wy: w.y, p, tilt, az, type, t: e.timeStamp, shift: e.shiftKey, alt: e.altKey };
   }
 
   private coalesced(e: PointerEvent): Ptr[] {
@@ -118,6 +126,7 @@ export class InputController {
     const ed = this.ed;
     if (e.pointerType === 'pen') {
       this.lastPenTime = performance.now();
+      this.lastPen = this.local(e);
       if (!ed.pencilDetected) {
         ed.pencilDetected = true;
         ed.emit('ui');
@@ -127,6 +136,7 @@ export class InputController {
     if (e.pointerType === 'touch' && this.toolPtr !== null && this.touches.size === 0 && this.isPenTool()) return;
     if (e.pointerType === 'touch' && this.touches.size === 0 && performance.now() - this.lastPenTime < 300) return;
     const p = this.toPtr(e);
+    this.onCanvasDown?.();
 
     if (ed.textEdit && ed.tool !== 'text') { ed.textEdit = null; ed.emit('ui'); }
 
@@ -252,7 +262,9 @@ export class InputController {
     // hover (Apple Pencil hover / mouse without buttons)
     if (e.buttons === 0 && (e.pointerType === 'pen' || e.pointerType === 'mouse') && this.toolPtr === null && !this.handleDrag && !this.panPtr) {
       const t = this.getTool();
-      if (t.hover) t.hover(this.toPtr(e));
+      const hp = this.toPtr(e);
+      if (e.pointerType === 'pen') this.lastPen = { x: hp.x, y: hp.y };
+      if (t.hover) t.hover(hp);
       return;
     }
     if (e.pointerType === 'touch') {
@@ -295,7 +307,11 @@ export class InputController {
     }
     if (this.toolPtr === e.pointerId) {
       const batch = this.coalesced(e);
-      this.getTool().move(batch[batch.length - 1], batch);
+      let predicted: Ptr[] = [];
+      if (this.ed.settings.prediction && e.pointerType === 'pen' && typeof (e as any).getPredictedEvents === 'function') {
+        try { predicted = ((e as any).getPredictedEvents() as PointerEvent[]).map((c) => this.toPtr(c)); } catch {}
+      }
+      this.getTool().move(batch[batch.length - 1], batch, predicted);
     }
   };
 
@@ -427,9 +443,15 @@ export class InputController {
     if (this.picking && this.picking.color) drawLoupe(ctx, this.picking.x, this.picking.y, this.picking.color);
   }
 
-  private onPencilDoubleTap = () => {
+  private onPencilDoubleTap = () => this.pencilAction(this.ed.settings.pencilDoubleTap);
+  private onPencilSqueeze = () => this.pencilAction(this.ed.settings.pencilSqueeze);
+
+  private pencilAction(action: string) {
     const ed = this.ed;
-    switch (ed.settings.pencilDoubleTap) {
+    switch (action) {
+      case 'palette':
+        window.dispatchEvent(new CustomEvent('quick-palette', { detail: this.lastPen }));
+        break;
       case 'eraser':
         if (ed.tool === 'eraser') ed.selectPreset(ed.lastDrawPreset);
         else if (ed.tool === 'draw' && ed.preset.brush === 'softEraser') ed.selectPreset(ed.lastDrawPreset);
@@ -444,7 +466,7 @@ export class InputController {
         window.dispatchEvent(new CustomEvent('open-color'));
         break;
     }
-  };
+  }
 
   private onKeyUp = (e: KeyboardEvent) => {
     if (e.code === 'Space') this.spaceDown = false;

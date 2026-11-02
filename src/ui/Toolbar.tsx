@@ -5,7 +5,9 @@ import { useEditor, VSlider, logTo, toLog, Seg, SliderRow, ToggleRow, PanelTitle
 import { BrushGlyph, Icon } from './icons';
 import { uid } from '../core/geom';
 import { defaultPresets } from '../core/settings';
-import { useRef } from 'preact/hooks';
+import { useEffect, useRef } from 'preact/hooks';
+import { drawStroke } from '../render/draw';
+import type { StrokeItem } from '../core/types';
 
 export type PanelId = null | 'color' | 'toolopts' | 'layers' | 'precision' | 'settings' | 'export' | 'library' | 'history' | 'import' | 'transform' | 'zoom';
 
@@ -139,14 +141,16 @@ export function ToolOptions({ ed, onClose }: { ed: Editor; onClose: () => void }
   return (
     <div class={cls} onPointerDown={(e) => e.stopPropagation()}>
       <PanelTitle title={p.name || def.label} onClose={onClose} />
+      <BrushPreview preset={p} />
       <div class="sec">
         <h4>Brush</h4>
-        <div class="grid-btns" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+        <div class="grid-btns" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
           {BRUSH_ORDER.map((b) => (
-            <button key={b} class={'tile' + (p.brush === b ? ' on' : '')} style={{ height: '78px', overflow: 'hidden', justifyContent: 'flex-end' }}
+            <button key={b} class={'tile' + (p.brush === b ? ' on' : '')} style={{ height: '74px', overflow: 'hidden', justifyContent: 'flex-end', fontSize: '10px' }}
               onClick={() => {
                 const d = BRUSHES[b];
-                set({ brush: b, size: Math.min(d.maxSize, Math.max(d.minSize, p.brush === b ? p.size : d.defSize)), opacity: p.brush === b ? p.opacity : d.defOpacity, smoothing: d.defSmoothing });
+                if (p.brush === b) return;
+                set({ brush: b, size: d.defSize, opacity: d.defOpacity, smoothing: d.defSmoothing, taper: undefined, pressureOpacity: !!d.pressureOpacity, nibFollow: d.nibFollow, pressureSize: true });
               }}>
               <div style={{ height: '40px', overflow: 'hidden' }}><BrushGlyph brush={b} color={p.color} size={22} /></div>
               {BRUSHES[b].label}
@@ -159,7 +163,14 @@ export function ToolOptions({ ed, onClose }: { ed: Editor; onClose: () => void }
         <SliderRow label="Size" value={toLog(Math.max(def.minSize, p.size), def.minSize, def.maxSize)} min={0} max={1} onChange={(t) => set({ size: logTo(t, def.minSize, def.maxSize) })} fmt={() => fmtSize(p.size)} />
         <SliderRow label="Opacity" value={p.opacity} min={0.02} max={1} onChange={(v) => set({ opacity: v })} fmt={(v) => Math.round(v * 100) + '%'} />
         <SliderRow label="Smoothing" value={p.smoothing} min={0} max={1} onChange={(v) => set({ smoothing: v })} fmt={(v) => Math.round(v * 100) + '%'} />
-        <ToggleRow label="Pressure affects size" on={p.pressureSize} onChange={(v) => set({ pressureSize: v })} />
+        <SliderRow label="Taper" value={p.taper ?? def.taper} min={0} max={4} onChange={(v) => set({ taper: v })} fmt={(v) => (v < 0.05 ? 'Off' : v.toFixed(1))} />
+        <ToggleRow label="Pressure → size" on={p.pressureSize} onChange={(v) => set({ pressureSize: v })} />
+        {def.style !== 'air' && def.style !== 'softErase' && def.style !== 'water' && (
+          <ToggleRow label="Pressure → opacity" on={p.pressureOpacity} onChange={(v) => set({ pressureOpacity: v })} />
+        )}
+        {def.style === 'nib' && (
+          <ToggleRow label="Nib follows Pencil angle" on={p.nibFollow ?? !!def.nibFollow} onChange={(v) => set({ nibFollow: v })} hint="The flat nib turns with the direction your Apple Pencil leans, like a real chisel marker." />
+        )}
         <div class="row">
           <label>Name</label>
           <input class="tinput" style={{ width: '160px' }} value={p.name || ''} placeholder={def.label} onChange={(e) => set({ name: (e.target as HTMLInputElement).value || undefined })} />
@@ -269,4 +280,48 @@ export function ToolStrip({ ed }: { ed: Editor }) {
   useEditor(ed, ['ui']);
   if (ed.tool === 'draw' || ed.selection.size) return null;
   return <div class="strip" onPointerDown={(e) => e.stopPropagation()}><UtilOptions ed={ed} /></div>;
+}
+
+/** Live sample stroke rendered with the preset's exact settings. */
+export function BrushPreview({ preset }: { preset: ToolPreset }) {
+  const ref = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    const c = ref.current;
+    if (!c) return;
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const W = 300, H = 74;
+    c.width = W * dpr; c.height = H * dpr;
+    const ctx = c.getContext('2d')!;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, c.width, c.height);
+    const def = BRUSHES[preset.brush];
+    const size = Math.min(preset.size, 40);
+    const pts: number[] = [];
+    const n = 80;
+    for (let i = 0; i <= n; i++) {
+      const t = i / n;
+      const x = 22 + t * (W - 44);
+      const y = H / 2 + Math.sin(t * Math.PI * 2) * (H / 2 - 10 - size / 2) * 0.8;
+      const pr = Math.sin(t * Math.PI) * 0.85 + 0.1;
+      pts.push(x, y, pr, 0.15);
+    }
+    const it: StrokeItem = { kind: 'stroke', id: 'preview', brush: preset.brush, color: preset.brush === 'softEraser' ? '#000000' : preset.color, opacity: preset.opacity, size, pts, seed: 1 };
+    if (!preset.pressureSize) it.nps = true;
+    if (preset.pressureOpacity !== !!def.pressureOpacity) it.po = preset.pressureOpacity;
+    if (preset.taper !== undefined) it.taper = preset.taper;
+    const m: [number, number, number, number, number, number] = [dpr, 0, 0, dpr, 0, 0];
+    if (def.style === 'softErase') {
+      ctx.fillStyle = preset.color === '#ffffff' ? '#8a8f99' : '#8a8f99';
+      ctx.globalAlpha = 0.35;
+      ctx.fillRect(0, 0, c.width, c.height);
+      ctx.globalAlpha = 1;
+    }
+    ctx.setTransform(...m);
+    drawStroke({ ctx, m }, it);
+  }, [preset]);
+  return (
+    <div class="sec" style={{ padding: '6px 10px' }}>
+      <canvas ref={ref} style={{ width: '100%', height: '74px', display: 'block', background: '#fff', borderRadius: '10px', boxShadow: 'inset 0 0 0 1px var(--border)' }} />
+    </div>
+  );
 }

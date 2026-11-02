@@ -13,6 +13,10 @@ export type BrushKind =
   | 'calligraphy'
   | 'airbrush'
   | 'watercolor'
+  | 'chisel'
+  | 'highlighter'
+  | 'charcoal'
+  | 'crayon'
   | 'softEraser';
 
 export type ShapeMeta =
@@ -33,6 +37,14 @@ export interface StrokeItem {
   pts: number[];
   seed: number;
   shape?: ShapeMeta;
+  /** Nib angle (radians, world space) for flat-nib brushes. */
+  nib?: number;
+  /** Pressure drives opacity. */
+  po?: boolean;
+  /** Taper override (multiple of size). */
+  taper?: number;
+  /** Pressure does not affect size. */
+  nps?: boolean;
 }
 
 export interface FillItem {
@@ -187,6 +199,10 @@ export interface ToolPreset {
   pressureSize: boolean;
   pressureOpacity: boolean;
   name?: string;
+  /** Taper override; undefined = brush default. */
+  taper?: number;
+  /** Flat nibs follow the Apple Pencil's azimuth. */
+  nibFollow?: boolean;
 }
 
 export type ToolId =

@@ -7,6 +7,7 @@ import { simplify, uid, apply, dist } from '../core/geom';
 import { angleStep, gridSnapper, perspectiveDirections } from './snap';
 import { VP_COLORS } from '../render/background';
 import { formatLength } from '../core/measure';
+import { haptic } from '../storage/kv';
 
 type Mode = 'free' | 'guide' | 'persp' | 'shape';
 
@@ -28,6 +29,9 @@ export class DrawTool implements Tool {
   private lastScreen = { x: 0, y: 0 };
   private item: StrokeItem | null = null;
   private hoverPt: Ptr | null = null;
+  private predicted: Ptr[] = [];
+  private raf = 0;
+  private az: number | null = null;
 
   constructor(private app: AppCtx) {}
 
@@ -53,6 +57,8 @@ export class DrawTool implements Tool {
     this.mode = 'free';
     this.perspDir = null;
     this.start = { x: p.wx, y: p.wy };
+    this.az = p.az;
+    this.predicted = [];
     this.anchor = { x: p.x, y: p.y };
     this.lastScreen = { x: p.x, y: p.y };
     const g = ed.doc.guide;
@@ -61,6 +67,7 @@ export class DrawTool implements Tool {
       const pr = projectGuide(gp, p.wx, p.wy);
       if (pr.d * zoom < 40) {
         this.mode = 'guide';
+        haptic('align', p.x, p.y);
         this.gp = gp;
         this.s0 = this.sCur = pr.s;
       }
@@ -70,7 +77,7 @@ export class DrawTool implements Tool {
     }
     this.app.renderer.beginLive();
     this.addPoint(p);
-    this.update();
+    this.renderNow();
     this.armHold();
   }
 
@@ -96,7 +103,8 @@ export class DrawTool implements Tool {
     if (!sh) return;
     this.shape = sh;
     this.mode = 'shape';
-    this.update();
+    haptic('align', this.lastScreen.x, this.lastScreen.y);
+    this.renderNow();
     this.app.renderer.requestOverlay();
   }
 
@@ -153,6 +161,7 @@ export class DrawTool implements Tool {
               if (c > bestCos) { bestCos = c; best = dir; }
             }
             this.perspDir = best;
+            if (best) { const sc = this.app.toScreen(b.wx, b.wy); haptic('align', sc.x, sc.y); }
           }
         }
         break;
@@ -225,23 +234,48 @@ export class DrawTool implements Tool {
       kind: 'stroke', id: uid('i'), brush: pr.brush, color: pr.brush === 'softEraser' ? '#000000' : pr.color,
       opacity: pr.opacity, size: this.size, pts, seed: this.seed,
     };
-    if (!pr.pressureSize) for (let i = 2; i < pts.length; i += 4) pts[i] = 0.75;
+    if (!pr.pressureSize) it.nps = true;
+    if (pr.pressureOpacity !== !!BRUSHES[pr.brush].pressureOpacity) it.po = pr.pressureOpacity;
+    if (pr.taper !== undefined) it.taper = pr.taper;
+    const def = BRUSHES[pr.brush];
+    if (def.style === 'nib') {
+      const viewRot = Math.atan2(this.app.editor.doc.view.m[1], this.app.editor.doc.view.m[0]);
+      const follow = pr.nibFollow ?? def.nibFollow;
+      const screenAngle = follow && this.az !== null ? this.az + Math.PI / 2 : (def.nibAngle ?? -Math.PI / 4);
+      it.nib = screenAngle - viewRot;
+    }
     if (this.mode === 'shape' && this.shape) it.shape = this.shape;
     else if (this.mode === 'persp' && this.perspDir) it.shape = { type: 'line', pts: [pts[0], pts[1], pts[pts.length - 4], pts[pts.length - 3]] };
     return it;
   }
 
+  /** Coalesce renders to one per display frame; pencil events can arrive at 240 Hz. */
   private update() {
-    const pts = this.buildPts();
+    if (this.raf) return;
+    this.raf = requestAnimationFrame(() => {
+      this.raf = 0;
+      if (this.active) this.renderNow();
+    });
+  }
+
+  private renderNow() {
+    let pts = this.buildPts();
     if (!pts.length) return;
+    // latency hiding: extend the displayed stroke with predicted samples (never committed)
+    if (this.mode === 'free' && this.predicted.length) {
+      pts = pts.slice();
+      const lastP = pts[pts.length - 2];
+      for (const q of this.predicted) pts.push(q.wx, q.wy, Math.max(0.02, q.p || lastP), q.tilt);
+    }
     this.item = this.makeItem(pts);
     this.app.renderer.updateLive([this.item]);
     if (this.mode !== 'free' || this.app.editor.settings.measureOn) this.app.renderer.requestOverlay();
   }
 
-  move(p: Ptr, batch: Ptr[]) {
+  move(p: Ptr, batch: Ptr[], predicted: Ptr[] = []) {
     if (!this.active) return;
     for (const b of batch) this.addPoint(b);
+    this.predicted = predicted.slice(0, 4);
     if (dist(p.x, p.y, this.anchor.x, this.anchor.y) > 4) {
       this.anchor = { x: p.x, y: p.y };
       if (this.mode === 'free') this.armHold();
@@ -253,6 +287,9 @@ export class DrawTool implements Tool {
   up(p: Ptr) {
     if (!this.active) return;
     clearTimeout(this.holdTimer);
+    cancelAnimationFrame(this.raf);
+    this.raf = 0;
+    this.predicted = [];
     if (this.mode === 'free' && this.raw.length) {
       // catch up with the pen so smoothing never shortens the stroke
       const n = this.pts.length;
@@ -275,6 +312,8 @@ export class DrawTool implements Tool {
 
   cancel() {
     clearTimeout(this.holdTimer);
+    cancelAnimationFrame(this.raf);
+    this.raf = 0;
     if (!this.active) return;
     this.active = false;
     this.item = null;

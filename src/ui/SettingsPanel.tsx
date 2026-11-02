@@ -17,7 +17,10 @@ export function SettingsPanel({ ed, onClose }: { ed: Editor; onClose: () => void
         <div class="row" style={{ marginTop: '8px' }}><label>Pressure</label></div>
         <Seg value={s.pressureCurve} onChange={(v) => set({ pressureCurve: v })} options={[{ v: 0.6, l: 'Soft' }, { v: 1, l: 'Normal' }, { v: 1.6, l: 'Firm' }]} />
         <div class="row" style={{ marginTop: '8px' }}><label>Double-tap</label></div>
-        <Seg value={s.pencilDoubleTap} onChange={(v) => set({ pencilDoubleTap: v })} options={[{ v: 'eraser', l: 'Eraser' }, { v: 'last', l: 'Last tool' }, { v: 'color', l: 'Color' }, { v: 'none', l: 'Off' }]} />
+        <Seg value={s.pencilDoubleTap} onChange={(v) => set({ pencilDoubleTap: v })} options={[{ v: 'eraser', l: 'Eraser' }, { v: 'palette', l: 'Palette' }, { v: 'last', l: 'Last tool' }, { v: 'color', l: 'Color' }, { v: 'none', l: 'Off' }]} />
+        <div class="row" style={{ marginTop: '8px' }}><label>Squeeze (Pencil Pro)</label></div>
+        <Seg value={s.pencilSqueeze} onChange={(v) => set({ pencilSqueeze: v })} options={[{ v: 'palette', l: 'Palette' }, { v: 'eraser', l: 'Eraser' }, { v: 'last', l: 'Last tool' }, { v: 'color', l: 'Color' }, { v: 'none', l: 'Off' }]} />
+        <div class="hint">The palette opens right under the pencil tip with your tools, recent colors, undo and redo.</div>
         <ToggleRow label="Hover preview" on={s.hoverPreview} onChange={(v) => set({ hoverPreview: v })} hint="Shows the brush outline when the pencil hovers over the screen (supported iPads)." />
         <ToggleRow label="Latency prediction" on={s.prediction} onChange={(v) => set({ prediction: v })} />
       </div>

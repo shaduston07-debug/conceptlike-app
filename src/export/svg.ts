@@ -33,9 +33,9 @@ function strokeSVG(it: StrokeItem, defs: string[]): string {
     defs.push(`<filter id="${id}" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="${f(it.size * (def.style === 'air' ? 0.21 : 0.06))}"/></filter>`);
     filter = ` filter="url(#${id})"`;
   }
-  const blend = def.style === 'marker' || def.style === 'water' ? ' style="mix-blend-mode:multiply"' : '';
+  const blend = def.multiply || def.style === 'marker' || def.style === 'water' ? ' style="mix-blend-mode:multiply"' : '';
   for (const g of ol.groups) {
-    const op = it.opacity * (def.style === 'pencil' ? g.alpha : 1);
+    const op = it.opacity * g.alpha;
     out.push(`<path d="${groupD(g)}" fill="${it.color}"${op < 1 ? ` fill-opacity="${f(op)}"` : ''}${filter}${blend}/>`);
   }
   return out.join('');

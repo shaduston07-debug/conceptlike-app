@@ -20,7 +20,8 @@ export interface Outline {
 }
 
 /** Interpolated, resampled stroke samples: x, y, r, alpha (stride 4). */
-export function sampleStroke(item: StrokeItem, pressureSize = true): number[] {
+export function sampleStroke(item: StrokeItem): number[] {
+  const pressureSize = !item.nps;
   const def = BRUSHES[item.brush];
   const src = item.pts;
   const n = src.length / 4;
@@ -32,8 +33,10 @@ export function sampleStroke(item: StrokeItem, pressureSize = true): number[] {
     if (def.tilt) k *= 1 + tilt * 2.6;
     return R * k;
   };
+  const po = item.po ?? !!def.pressureOpacity;
+  const omin = po ? (def.omin < 1 ? def.omin : 0.22) : 1;
   const alphaOf = (p: number, tilt: number) => {
-    let a = def.omin + (1 - def.omin) * Math.pow(p, 0.8);
+    let a = omin + (1 - omin) * Math.pow(p, 0.8);
     if (def.tilt) a *= 1 - tilt * 0.55;
     return a;
   };
@@ -67,12 +70,13 @@ export function sampleStroke(item: StrokeItem, pressureSize = true): number[] {
   }
   out.push(src[(n - 1) * 4], src[(n - 1) * 4 + 1], radius(src[(n - 1) * 4 + 2], src[(n - 1) * 4 + 3]), alphaOf(src[(n - 1) * 4 + 2], src[(n - 1) * 4 + 3]));
   // tapering
-  if (def.taper > 0 && out.length > 8) {
+  const taper = item.taper ?? def.taper;
+  if (taper > 0 && out.length > 8) {
     const m = out.length / 4;
     const cum = new Float64Array(m);
     for (let i = 1; i < m; i++) cum[i] = cum[i - 1] + Math.hypot(out[i * 4] - out[i * 4 - 4], out[i * 4 + 1] - out[i * 4 - 3]);
     const total = cum[m - 1];
-    const tl = Math.min(def.taper * item.size, total * 0.4);
+    const tl = Math.min(taper * item.size, total * 0.4);
     if (tl > 0) {
       for (let i = 0; i < m; i++) {
         const a = Math.min(1, cum[i] / tl), b = Math.min(1, (total - cum[i]) / tl);
@@ -131,7 +135,7 @@ export function buildOutline(item: StrokeItem): Outline {
   const bbox = emptyRect();
   for (let i = 0; i < m; i++) rectAdd(bbox, s[i * 4], s[i * 4 + 1], s[i * 4 + 2] + 0.5);
   const nib = def.style === 'nib';
-  const graded = def.style === 'pencil';
+  const graded = def.style === 'pencil' || (!!item.po && def.style !== 'air' && def.style !== 'softErase' && def.style !== 'water');
   const groups = new Map<number, OutlineGroup>();
   const keyOf = (a: number) => (graded ? Math.max(1, Math.min(10, Math.round(a * 10))) / 10 : 1);
   const groupFor = (key: number): OutlineGroup => {
@@ -139,12 +143,14 @@ export function buildOutline(item: StrokeItem): Outline {
     if (!g) { g = { alpha: key, circles: [], quads: [], polys: [] }; groups.set(key, g); }
     return g;
   };
-  const nx = Math.cos(NIB_ANGLE), ny = Math.sin(NIB_ANGLE);
+  const nibA = item.nib ?? def.nibAngle ?? NIB_ANGLE;
+  const nx = Math.cos(nibA), ny = Math.sin(nibA);
+  const thin = def.nibThin ?? 0.12;
 
   if (m === 1) {
     const g = groupFor(keyOf(s[3]));
     if (nib) {
-      const r = s[2], px = -ny * r * 0.3, py = nx * r * 0.3;
+      const r = s[2], px = -ny * r * Math.max(0.3, thin), py = nx * r * Math.max(0.3, thin);
       pushQuad(g, [s[0] + nx * r + px, s[1] + ny * r + py, s[0] - nx * r + px, s[1] - ny * r + py, s[0] - nx * r - px, s[1] - ny * r - py, s[0] + nx * r - px, s[1] + ny * r - py]);
     } else pushCircle(g, s[0], s[1], s[2]);
     return { groups: [...groups.values()], bbox };
@@ -175,7 +181,7 @@ export function buildOutline(item: StrokeItem): Outline {
         ox = nx * r; oy = ny * r;
         const c = tx * oy - ty * ox; // perpendicular component relative to motion
         const sg = c >= 0 ? 1 : -1;
-        ox += -ty * sg * r * 0.12; oy += tx * sg * r * 0.12;
+        ox += -ty * sg * r * thin; oy += tx * sg * r * thin;
       } else {
         // keep the width exact around gentle bends (miter correction)
         const cosHalf = Math.max(0.5, tx * dirs[sb * 2] + ty * dirs[sb * 2 + 1]);

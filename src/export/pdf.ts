@@ -153,10 +153,10 @@ async function itemOps(
       const def = BRUSHES[it.brush];
       if (def.style === 'softErase') return;
       const ol = strokeOutline(it);
-      const blend = def.style === 'marker' || def.style === 'water' ? 'Multiply' : 'Normal';
+      const blend = def.multiply || def.style === 'marker' || def.style === 'water' ? 'Multiply' : 'Normal';
       const soft = def.style === 'air' ? 0.55 : def.style === 'water' ? 0.8 : 1;
       for (const g of ol.groups) {
-        const a = it.opacity * layerOpacity * soft * (def.style === 'pencil' ? g.alpha : 1);
+        const a = it.opacity * layerOpacity * soft * g.alpha;
         const path: string[] = [];
         const c = g.circles;
         const K = 0.5522847498;

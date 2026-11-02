@@ -98,6 +98,10 @@ export function BrushGlyph({ brush, color, size = 34 }: { brush: string; color: 
     airbrush: 'M10.5 6.5h3V9h-3zM12 1.5a2.4 2.4 0 1 1 0 4.8 2.4 2.4 0 0 1 0-4.8z',
     watercolor: 'M12 1.5c-2 2.5-2.6 4.6-2.2 7.5h4.4c.4-2.9-.2-5-2.2-7.5z',
     softEraser: 'M9 3.5a3 3 0 0 1 6 0V9H9z',
+    chisel: 'M9 5 15 1.5V9H9z',
+    highlighter: 'M8.6 4h6.8v5H8.6z',
+    charcoal: 'M9.4 2.2 14.6 1.6 15 9H9z',
+    crayon: 'M12 1.2 9.2 6.5V9h5.6V6.5z',
   };
   const isEraser = brush === 'softEraser';
   return (
