@@ -36,13 +36,13 @@ export function drawBackground(
       ctx.fillStyle = outsideColor(bg.color);
       ctx.fillRect(0, 0, w, h);
       const a = doc.artboard;
-      ctx.setTransform(m[0], m[1], m[2], m[3], m[4], m[5]);
+      setLocal(ctx, m, a.x, a.y);
       ctx.save();
       ctx.shadowColor = 'rgba(0,0,0,0.25)';
       ctx.shadowBlur = 18 * dpr;
       ctx.shadowOffsetY = 3 * dpr;
       ctx.fillStyle = bg.color;
-      ctx.fillRect(a.x, a.y, a.w, a.h);
+      ctx.fillRect(0, 0, a.w, a.h);
       ctx.restore();
     } else {
       ctx.fillStyle = bg.color;
@@ -54,35 +54,43 @@ export function drawBackground(
   ctx.setTransform(1, 0, 0, 1, 0, 0);
 }
 
+/** Use a nearby local origin so coordinates stay small (float precision at deep zoom). */
+function setLocal(ctx: CanvasRenderingContext2D, m: Mat, ox: number, oy: number) {
+  ctx.setTransform(m[0], m[1], m[2], m[3], m[0] * ox + m[2] * oy + m[4], m[1] * ox + m[3] * oy + m[5]);
+}
+
 function drawGrid(ctx: CanvasRenderingContext2D, doc: DrawingDoc, m: Mat, w: number, h: number, dpr: number) {
   const bg = doc.background;
   const zoom = matScale(m) / dpr; // CSS px per world unit
   let step = bg.gridSize;
   // keep screen spacing between ~10 and ~120 css px
   while (step * zoom < 10) step *= bg.paper === 'iso' ? 2 : 5;
-  while (step * zoom > 120 && step > 1e-6) step /= bg.paper === 'iso' ? 2 : 5;
+  while (step * zoom > 120 && step > 1e-300) step /= bg.paper === 'iso' ? 2 : 5;
   const vw = visibleWorld(m, w, h);
-  ctx.setTransform(m[0], m[1], m[2], m[3], m[4], m[5]);
   const px = 1 / matScale(m); // one device pixel in world units
   const color = bg.gridColor;
   const alpha = bg.gridOpacity;
+  // grid-aligned local origin; everything below is relative to it
+  const ix0 = Math.floor(vw.x0 / step), iy0 = Math.floor(vw.y0 / step);
+  const ox = ix0 * step, oy = iy0 * step;
+  setLocal(ctx, m, ox, oy);
+  const X0 = vw.x0 - ox, X1 = vw.x1 - ox, Y0 = vw.y0 - oy, Y1 = vw.y1 - oy;
+  const nx = Math.ceil(X1 / step), ny = Math.ceil(Y1 / step);
   if (doc.artboard) {
     ctx.save();
     ctx.beginPath();
-    ctx.rect(doc.artboard.x, doc.artboard.y, doc.artboard.w, doc.artboard.h);
+    ctx.rect(doc.artboard.x - ox, doc.artboard.y - oy, doc.artboard.w, doc.artboard.h);
     ctx.clip();
   }
-  const x0 = Math.floor(vw.x0 / step) * step, x1 = vw.x1;
-  const y0 = Math.floor(vw.y0 / step) * step, y1 = vw.y1;
-  const count = ((x1 - x0) / step) * ((y1 - y0) / step);
   switch (bg.paper) {
     case 'dots': {
-      if (count > 40000) break;
+      if ((nx + 1) * (ny + 1) > 40000) break;
       ctx.fillStyle = rgba(color, alpha);
-      const r = Math.max(1.1 * dpr, 1.6 * dpr) * px;
+      const r = 1.6 * dpr * px;
       ctx.beginPath();
-      for (let x = x0; x <= x1; x += step)
-        for (let y = y0; y <= y1; y += step) {
+      for (let i = 0; i <= nx; i++)
+        for (let j = 0; j <= ny; j++) {
+          const x = i * step, y = j * step;
           ctx.moveTo(x + r, y);
           ctx.arc(x, y, r, 0, Math.PI * 2);
         }
@@ -91,20 +99,20 @@ function drawGrid(ctx: CanvasRenderingContext2D, doc: DrawingDoc, m: Mat, w: num
     }
     case 'grid':
     case 'graph': {
-      const major = step * 5;
       ctx.lineWidth = px * dpr * 0.8;
       ctx.strokeStyle = rgba(color, alpha * (bg.paper === 'graph' ? 0.55 : 0.8));
       ctx.beginPath();
-      for (let x = x0; x <= x1; x += step) { ctx.moveTo(x, vw.y0); ctx.lineTo(x, vw.y1); }
-      for (let y = y0; y <= y1; y += step) { ctx.moveTo(vw.x0, y); ctx.lineTo(vw.x1, y); }
+      for (let i = 0; i <= nx; i++) { ctx.moveTo(i * step, Y0); ctx.lineTo(i * step, Y1); }
+      for (let j = 0; j <= ny; j++) { ctx.moveTo(X0, j * step); ctx.lineTo(X1, j * step); }
       ctx.stroke();
       if (bg.paper === 'graph') {
         ctx.lineWidth = px * dpr * 1.4;
         ctx.strokeStyle = rgba(color, alpha);
         ctx.beginPath();
-        const mx0 = Math.floor(vw.x0 / major) * major, my0 = Math.floor(vw.y0 / major) * major;
-        for (let x = mx0; x <= x1; x += major) { ctx.moveTo(x, vw.y0); ctx.lineTo(x, vw.y1); }
-        for (let y = my0; y <= y1; y += major) { ctx.moveTo(vw.x0, y); ctx.lineTo(vw.x1, y); }
+        // major lines every 5 cells, aligned to absolute multiples of 5 * step
+        const offX = ((ix0 % 5) + 5) % 5, offY = ((iy0 % 5) + 5) % 5;
+        for (let i = (5 - offX) % 5; i <= nx; i += 5) { ctx.moveTo(i * step, Y0); ctx.lineTo(i * step, Y1); }
+        for (let j = (5 - offY) % 5; j <= ny; j += 5) { ctx.moveTo(X0, j * step); ctx.lineTo(X1, j * step); }
         ctx.stroke();
       }
       break;
@@ -113,7 +121,7 @@ function drawGrid(ctx: CanvasRenderingContext2D, doc: DrawingDoc, m: Mat, w: num
       ctx.lineWidth = px * dpr * 0.9;
       ctx.strokeStyle = rgba(color, alpha);
       ctx.beginPath();
-      for (let y = y0; y <= y1; y += step) { ctx.moveTo(vw.x0, y); ctx.lineTo(vw.x1, y); }
+      for (let j = 0; j <= ny; j++) { ctx.moveTo(X0, j * step); ctx.lineTo(X1, j * step); }
       ctx.stroke();
       break;
     }
@@ -121,18 +129,21 @@ function drawGrid(ctx: CanvasRenderingContext2D, doc: DrawingDoc, m: Mat, w: num
       ctx.lineWidth = px * dpr * 0.8;
       ctx.strokeStyle = rgba(color, alpha * 0.85);
       const t = Math.tan(Math.PI / 6);
-      const hs = step; // horizontal spacing of vertical lines
       ctx.beginPath();
-      for (let x = Math.floor(vw.x0 / hs) * hs; x <= x1; x += hs) { ctx.moveTo(x, vw.y0); ctx.lineTo(x, vw.y1); }
-      // lines y = ±t x + c; spacing along y is hs / cos... use c step = hs * t * 2 / 2
-      const cstep = hs * t * 2;
-      const span = (vw.x1 - vw.x0) * t;
+      for (let i = 0; i <= nx; i++) { ctx.moveTo(i * step, Y0); ctx.lineTo(i * step, Y1); }
+      // diagonals y = ±t·x + c (absolute), expressed in local coordinates
+      const cstep = step * t * 2;
       for (const sgn of [1, -1]) {
-        const cmin = vw.y0 - span - Math.abs(t * vw.x1) - Math.abs(t * vw.x0);
-        const cmax = vw.y1 + span + Math.abs(t * vw.x1) + Math.abs(t * vw.x0);
-        for (let c = Math.floor(cmin / cstep) * cstep; c <= cmax; c += cstep) {
-          ctx.moveTo(vw.x0, sgn * t * vw.x0 + c);
-          ctx.lineTo(vw.x1, sgn * t * vw.x1 + c);
+        // absolute intercept range covering the view, then convert to local
+        const cA = vw.y0 - sgn * t * vw.x0, cB = vw.y0 - sgn * t * vw.x1, cC = vw.y1 - sgn * t * vw.x0, cD = vw.y1 - sgn * t * vw.x1;
+        const cmin = Math.min(cA, cB, cC, cD), cmax = Math.max(cA, cB, cC, cD);
+        const k0 = Math.floor(cmin / cstep), k1 = Math.ceil(cmax / cstep);
+        if (k1 - k0 > 4000) continue;
+        for (let k = k0; k <= k1; k++) {
+          // local line: (y + oy) = sgn*t*(x + ox) + k*cstep  ->  y = sgn*t*x + (sgn*t*ox + k*cstep - oy)
+          const c = sgn * t * ox - oy + k * cstep;
+          ctx.moveTo(X0, sgn * t * X0 + c);
+          ctx.lineTo(X1, sgn * t * X1 + c);
         }
       }
       ctx.stroke();
@@ -146,8 +157,11 @@ function drawPerspective(ctx: CanvasRenderingContext2D, doc: DrawingDoc, m: Mat,
   const p = doc.perspective;
   const vw = visibleWorld(m, w, h);
   const px = 1 / matScale(m);
-  ctx.setTransform(m[0], m[1], m[2], m[3], m[4], m[5]);
+  const ox = vw.x0, oy = vw.y0;
+  setLocal(ctx, m, ox, oy);
   const far = Math.max(vw.x1 - vw.x0, vw.y1 - vw.y0) * 4 + 1e5 * px;
+  // clamp each ray to the view neighbourhood so coordinates stay small
+  const near = (x: number, y: number) => ({ x: x - ox, y: y - oy });
   // horizon
   if (p.mode !== '3pt' || p.vps.length >= 2) {
     const a = p.vps[0], b = p.vps[1] || { x: a.x + 1, y: a.y };
@@ -155,8 +169,13 @@ function drawPerspective(ctx: CanvasRenderingContext2D, doc: DrawingDoc, m: Mat,
     ctx.strokeStyle = 'rgba(80,90,110,0.65)';
     ctx.lineWidth = 1.5 * dpr * px;
     ctx.beginPath();
-    ctx.moveTo(a.x - Math.cos(ang) * far, a.y - Math.sin(ang) * far);
-    ctx.lineTo(a.x + Math.cos(ang) * far, a.y + Math.sin(ang) * far);
+    const cx = (vw.x0 + vw.x1) / 2, cy = (vw.y0 + vw.y1) / 2;
+    // project the view centre onto the horizon so the segment always spans the screen
+    const t = (cx - a.x) * Math.cos(ang) + (cy - a.y) * Math.sin(ang);
+    const hx = a.x + Math.cos(ang) * t, hy = a.y + Math.sin(ang) * t;
+    const p0 = near(hx - Math.cos(ang) * far, hy - Math.sin(ang) * far), p1 = near(hx + Math.cos(ang) * far, hy + Math.sin(ang) * far);
+    ctx.moveTo(p0.x, p0.y);
+    ctx.lineTo(p1.x, p1.y);
     ctx.stroke();
   }
   p.vps.forEach((vp, i) => {
@@ -166,8 +185,11 @@ function drawPerspective(ctx: CanvasRenderingContext2D, doc: DrawingDoc, m: Mat,
     const n = Math.max(8, p.density);
     for (let k = 0; k < n; k++) {
       const a = (k / n) * Math.PI * 2;
-      ctx.moveTo(vp.x, vp.y);
-      ctx.lineTo(vp.x + Math.cos(a) * far, vp.y + Math.sin(a) * far);
+      const q0 = near(vp.x, vp.y);
+      const dist = Math.hypot(vp.x - (vw.x0 + vw.x1) / 2, vp.y - (vw.y0 + vw.y1) / 2);
+      const q1 = near(vp.x + Math.cos(a) * (far + dist), vp.y + Math.sin(a) * (far + dist));
+      ctx.moveTo(q0.x, q0.y);
+      ctx.lineTo(q1.x, q1.y);
     }
     ctx.stroke();
   });
@@ -180,8 +202,11 @@ function drawPerspective(ctx: CanvasRenderingContext2D, doc: DrawingDoc, m: Mat,
     ctx.strokeStyle = 'rgba(120,120,140,0.22)';
     ctx.lineWidth = dpr * px;
     ctx.beginPath();
-    for (let x = Math.floor(vw.x0 / step) * step; x <= vw.x1; x += step) { ctx.moveTo(x, vw.y0); ctx.lineTo(x, vw.y1); }
-    if (p.mode === '1pt') for (let y = Math.floor(vw.y0 / step) * step; y <= vw.y1; y += step) { ctx.moveTo(vw.x0, y); ctx.lineTo(vw.x1, y); }
+    while (step * zoom > 240 && step > 1e-300) step /= 2;
+    const W = vw.x1 - ox, H = vw.y1 - oy;
+    const sx = Math.floor(vw.x0 / step) * step - ox, sy = Math.floor(vw.y0 / step) * step - oy;
+    for (let i = 0, x = sx; x <= W; x = sx + ++i * step) { ctx.moveTo(x, 0); ctx.lineTo(x, H); }
+    if (p.mode === '1pt') for (let j = 0, y = sy; y <= H; y = sy + ++j * step) { ctx.moveTo(0, y); ctx.lineTo(W, y); }
     ctx.stroke();
   }
   ctx.setTransform(1, 0, 0, 1, 0, 0);

@@ -2,7 +2,7 @@ import type { AppCtx, Ptr, Tool } from './context';
 import type { Mat, Item } from '../core/types';
 import { apply, about, scale, rotate, translate, mul, inv, pointInPoly, I, normAngle, type Rect } from '../core/geom';
 import { hitItem, itemInLasso, itemBounds } from '../core/items';
-import { drawItem, groupPath, fillPath } from '../render/draw';
+import { drawItemAt, deviceCtx, groupPath, fillPath } from '../render/draw';
 import { strokeOutline } from '../core/stroke';
 import { formatLength } from '../core/measure';
 import { label } from './draw';
@@ -112,8 +112,8 @@ export class SelectTool implements Tool {
           const vx = hx - px, vy = hy - py;
           const k = ((p.wx - px) * vx + (p.wy - py) * vy) / (vx * vx + vy * vy || 1);
           if (p.alt) {
-            sx = Math.abs(hx - px) > 1e-9 ? (p.wx - px) / (hx - px) : 1;
-            sy = Math.abs(hy - py) > 1e-9 ? (p.wy - py) / (hy - py) : 1;
+            sx = hx !== px ? (p.wx - px) / (hx - px) : 1;
+            sy = hy !== py ? (p.wy - py) / (hy - py) : 1;
           } else sx = sy = k;
         } else if (h === 'e' || h === 'w') sx = (p.wx - px) / (hx - px || 1);
         else sy = (p.wy - py) / (hy - py || 1);
@@ -279,20 +279,17 @@ export class SelectTool implements Tool {
     if (transforming) {
       // draw the items being transformed
       ctx.save();
-      for (const it of sel) {
-        ctx.setTransform(full[0], full[1], full[2], full[3], full[4], full[5]);
-        drawItem({ ctx, m: full }, it);
-      }
+      for (const it of sel) drawItemAt(ctx, it, full);
       ctx.restore();
     }
     // highlight
     if (sel.length <= 600) {
       ctx.save();
-      ctx.setTransform(full[0], full[1], full[2], full[3], full[4], full[5]);
-      ctx.fillStyle = 'rgba(47,107,255,0.28)';
       for (const it of sel) {
-        if (it.kind === 'stroke') for (const g of strokeOutline(it).groups) ctx.fill(groupPath(g));
-        else if (it.kind === 'fill') ctx.fill(fillPath(it), 'evenodd');
+        const dc = deviceCtx(ctx, full, itemBounds(it));
+        ctx.fillStyle = 'rgba(47,107,255,0.28)';
+        if (it.kind === 'stroke') for (const g of strokeOutline(it).groups) ctx.fill(groupPath(g, dc.o));
+        else if (it.kind === 'fill') ctx.fill(fillPath(it, dc.o), 'evenodd');
       }
       ctx.restore();
     }
@@ -344,7 +341,7 @@ function transformRect(b: Rect, m: Mat): Rect {
 }
 
 function isIdentity(m: Mat) {
-  return Math.abs(m[0] - 1) < 1e-9 && Math.abs(m[1]) < 1e-9 && Math.abs(m[2]) < 1e-9 && Math.abs(m[3] - 1) < 1e-9 && Math.abs(m[4]) < 1e-9 && Math.abs(m[5]) < 1e-9;
+  return m[0] === 1 && m[1] === 0 && m[2] === 0 && m[3] === 1 && m[4] === 0 && m[5] === 0;
 }
 
 function hitSelected(items: Item[], x: number, y: number, tol: number) {

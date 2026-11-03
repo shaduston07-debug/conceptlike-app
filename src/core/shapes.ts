@@ -323,11 +323,14 @@ function asRectangle(p: number[]): number[] | null {
   return out;
 }
 
-export function circleFrom3(ax: number, ay: number, bx: number, by: number, cx: number, cy: number) {
+export function circleFrom3(ax0: number, ay0: number, bx0: number, by0: number, cx0: number, cy0: number) {
+  // work relative to the first point so precision holds at any zoom / position
+  const ax = 0, ay = 0, bx = bx0 - ax0, by = by0 - ay0, cx = cx0 - ax0, cy = cy0 - ay0;
   const d = 2 * (ax * (by - cy) + bx * (cy - ay) + cx * (ay - by));
-  if (Math.abs(d) < 1e-9) return null;
-  const a2 = ax * ax + ay * ay, b2 = bx * bx + by * by, c2 = cx * cx + cy * cy;
-  const x = (a2 * (by - cy) + b2 * (cy - ay) + c2 * (ay - by)) / d;
-  const y = (a2 * (cx - bx) + b2 * (ax - cx) + c2 * (bx - ax)) / d;
-  return { x, y, r: dist(x, y, ax, ay) };
+  const span2 = bx * bx + by * by + cx * cx + cy * cy;
+  if (Math.abs(d) <= 1e-9 * span2) return null;
+  const b2 = bx * bx + by * by, c2 = cx * cx + cy * cy;
+  const x = (b2 * (cy - ay) + c2 * (ay - by)) / d;
+  const y = (b2 * (ax - cx) + c2 * (bx - ax)) / d;
+  return { x: x + ax0, y: y + ay0, r: Math.hypot(x, y) };
 }

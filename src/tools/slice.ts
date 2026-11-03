@@ -91,14 +91,15 @@ export class SliceTool implements Tool {
       cuts.sort((a, c) => a - c);
       const cum = cumLengths(s.pts);
       const L = cum[cum.length - 1];
-      const bounds = [0, ...cuts.filter((c) => c > 1e-6 && c < L - 1e-6), L];
+      const eps = L * 1e-9;
+      const bounds = [0, ...cuts.filter((c) => c > eps && c < L - eps), L];
       const remove = new Set<number>();
       for (const t of touched) {
         for (let i = 0; i < bounds.length - 1; i++) if (t >= bounds[i] && t <= bounds[i + 1]) { remove.add(i); break; }
       }
       const pieces: StrokeItem[] = [];
       for (let i = 0; i < bounds.length - 1; i++) {
-        if (remove.has(i) || bounds[i + 1] - bounds[i] < 1e-6) continue;
+        if (remove.has(i) || bounds[i + 1] - bounds[i] <= eps) continue;
         pieces.push(pieceItem(s, strokeRange(s.pts, cum, bounds[i], bounds[i + 1])));
       }
       // merge adjacent kept pieces back together
@@ -128,7 +129,7 @@ function mergeAdjacent(pieces: StrokeItem[], _src: StrokeItem): StrokeItem[] {
   for (let i = 1; i < pieces.length; i++) {
     const a = out[out.length - 1], b = pieces[i];
     const ax = a.pts[a.pts.length - 4], ay = a.pts[a.pts.length - 3];
-    if (Math.hypot(ax - b.pts[0], ay - b.pts[1]) < 1e-6) out[out.length - 1] = { ...a, pts: [...a.pts, ...b.pts.slice(4)] };
+    if (Math.hypot(ax - b.pts[0], ay - b.pts[1]) <= a.size * 1e-6) out[out.length - 1] = { ...a, pts: [...a.pts, ...b.pts.slice(4)] };
     else out.push(b);
   }
   return out;

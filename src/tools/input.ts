@@ -6,8 +6,9 @@ import { sampleColor, applyPickedColor, drawLoupe } from './eyedropper';
 
 interface TP { id: number; x: number; y: number; sx: number; sy: number; t: number; type: string }
 
-const MIN_ZOOM = 0.02;
-const MAX_ZOOM = 640;
+// 0.05% … 1,000,000% — geometry is double precision and rendered origin-relative, so detail holds.
+export const MIN_ZOOM = 0.0005;
+export const MAX_ZOOM = 10000;
 
 /**
  * Routes pointer input: pen/finger drawing, multi-touch navigation, taps for undo/redo,

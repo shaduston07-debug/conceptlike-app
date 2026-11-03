@@ -7,13 +7,16 @@ import {
 const bboxCache = new WeakMap<Item, Rect>();
 
 let measureCtx: CanvasRenderingContext2D | null = null;
+/** Reference font size used for text layout; results are scaled to the item's size. */
+export const TEXT_REF = 100;
 export function textMetrics(t: TextItem): { w: number; h: number; lines: string[]; lineH: number; widths: number[] } {
   if (!measureCtx) measureCtx = document.createElement('canvas').getContext('2d')!;
-  measureCtx.font = textFont(t);
+  measureCtx.font = textFont({ ...t, size: TEXT_REF });
   const lines = t.text.split('\n');
-  const widths = lines.map((l) => measureCtx!.measureText(l || ' ').width);
+  const k = t.size / TEXT_REF;
+  const widths = lines.map((l) => measureCtx!.measureText(l || ' ').width * k);
   const lineH = t.size * 1.25;
-  return { w: Math.max(4, ...widths), h: Math.max(lineH, lines.length * lineH), lines, lineH, widths };
+  return { w: Math.max(t.size * 0.1, ...widths), h: Math.max(lineH, lines.length * lineH), lines, lineH, widths };
 }
 export const textFont = (t: TextItem) => `${t.italic ? 'italic ' : ''}${t.weight} ${t.size}px ${t.font}`;
 

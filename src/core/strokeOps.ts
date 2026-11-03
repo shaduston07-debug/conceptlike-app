@@ -87,10 +87,11 @@ export function selfCrossings(a: StrokeItem): number[] {
 export function splitAt(item: StrokeItem, positions: number[]): StrokeItem[] {
   const cum = cumLengths(item.pts);
   const L = cum[cum.length - 1];
-  const cuts = [0, ...positions.filter((s) => s > 1e-6 && s < L - 1e-6), L];
+  const eps = L * 1e-9;
+  const cuts = [0, ...positions.filter((s) => s > eps && s < L - eps), L];
   const out: StrokeItem[] = [];
   for (let i = 0; i < cuts.length - 1; i++) {
-    if (cuts[i + 1] - cuts[i] < 1e-6) continue;
+    if (cuts[i + 1] - cuts[i] <= eps) continue;
     out.push(pieceItem(item, strokeRange(item.pts, cum, cuts[i], cuts[i + 1])));
   }
   return out;
@@ -105,7 +106,7 @@ export function eraseAlong(item: StrokeItem, path: number[], r: number): StrokeI
     py0 = Math.min(py0, path[i + 1]); py1 = Math.max(py1, path[i + 1]);
   }
   if (!rectsOverlap(b, { x0: px0 - r, y0: py0 - r, x1: px1 + r, y1: py1 + r })) return null;
-  const pts = densify(item.pts, Math.max(r * 0.35, 0.05));
+  const pts = densify(item.pts, Math.max(r * 0.35, item.size * 0.05));
   const n = pts.length / 4;
   const rr = r + item.size * 0.25;
   const r2 = rr * rr;

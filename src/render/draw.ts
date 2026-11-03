@@ -1,50 +1,84 @@
 import type { Item, StrokeItem, FillItem, ImageItem, TextItem, Mat } from '../core/types';
 import { strokeOutline, type OutlineGroup } from '../core/stroke';
 import { BRUSHES } from '../core/brushes';
-import { textMetrics, textFont } from '../core/items';
+import { textMetrics, textFont, TEXT_REF, itemBounds } from '../core/items';
 import { hexToRgb, rgba } from './color';
-import { inv, applyVec, matScale } from '../core/geom';
+import { inv, apply, applyVec, matScale } from '../core/geom';
+
+/** Local origin for deep-zoom rendering; geometry is re-expressed relative to it. */
+export interface Origin { x: number; y: number }
 
 const pathCache = new WeakMap<OutlineGroup, Path2D>();
 const fillCache = new WeakMap<FillItem, Path2D>();
+const relPathCache = new WeakMap<OutlineGroup, { x: number; y: number; p: Path2D }>();
+const relFillCache = new WeakMap<FillItem, { x: number; y: number; p: Path2D }>();
 
-export function groupPath(g: OutlineGroup): Path2D {
-  let p = pathCache.get(g);
-  if (p) return p;
-  p = new Path2D();
+function buildGroupPath(g: OutlineGroup, ox: number, oy: number): Path2D {
+  const p = new Path2D();
   const c = g.circles;
   for (let i = 0; i < c.length; i += 3) {
-    p.moveTo(c[i] + c[i + 2], c[i + 1]);
-    p.arc(c[i], c[i + 1], c[i + 2], 0, Math.PI * 2, false);
+    const x = c[i] - ox, y = c[i + 1] - oy;
+    p.moveTo(x + c[i + 2], y);
+    p.arc(x, y, c[i + 2], 0, Math.PI * 2, false);
     p.closePath();
   }
   const q = g.quads;
   for (let i = 0; i < q.length; i += 8) {
-    p.moveTo(q[i], q[i + 1]);
-    p.lineTo(q[i + 2], q[i + 3]);
-    p.lineTo(q[i + 4], q[i + 5]);
-    p.lineTo(q[i + 6], q[i + 7]);
+    p.moveTo(q[i] - ox, q[i + 1] - oy);
+    p.lineTo(q[i + 2] - ox, q[i + 3] - oy);
+    p.lineTo(q[i + 4] - ox, q[i + 5] - oy);
+    p.lineTo(q[i + 6] - ox, q[i + 7] - oy);
     p.closePath();
   }
   for (const poly of g.polys) {
-    p.moveTo(poly[0], poly[1]);
-    for (let i = 2; i < poly.length; i += 2) p.lineTo(poly[i], poly[i + 1]);
+    p.moveTo(poly[0] - ox, poly[1] - oy);
+    for (let i = 2; i < poly.length; i += 2) p.lineTo(poly[i] - ox, poly[i + 1] - oy);
     p.closePath();
   }
+  return p;
+}
+
+/**
+ * Path for an outline group. Canvas paths are stored in 32-bit floats, so far from the origin or
+ * at extreme zoom the geometry is rebuilt relative to a nearby origin to stay pixel-exact.
+ */
+export function groupPath(g: OutlineGroup, o?: Origin): Path2D {
+  if (o) {
+    const c = relPathCache.get(g);
+    if (c && c.x === o.x && c.y === o.y) return c.p;
+    const p = buildGroupPath(g, o.x, o.y);
+    relPathCache.set(g, { x: o.x, y: o.y, p });
+    return p;
+  }
+  let p = pathCache.get(g);
+  if (p) return p;
+  p = buildGroupPath(g, 0, 0);
   pathCache.set(g, p);
   return p;
 }
 
-export function fillPath(f: FillItem): Path2D {
-  let p = fillCache.get(f);
-  if (p) return p;
-  p = new Path2D();
+function buildFillPath(f: FillItem, ox: number, oy: number): Path2D {
+  const p = new Path2D();
   for (const poly of f.polys) {
     if (poly.length < 6) continue;
-    p.moveTo(poly[0], poly[1]);
-    for (let i = 2; i < poly.length; i += 2) p.lineTo(poly[i], poly[i + 1]);
+    p.moveTo(poly[0] - ox, poly[1] - oy);
+    for (let i = 2; i < poly.length; i += 2) p.lineTo(poly[i] - ox, poly[i + 1] - oy);
     p.closePath();
   }
+  return p;
+}
+
+export function fillPath(f: FillItem, o?: Origin): Path2D {
+  if (o) {
+    const c = relFillCache.get(f);
+    if (c && c.x === o.x && c.y === o.y) return c.p;
+    const p = buildFillPath(f, o.x, o.y);
+    relFillCache.set(f, { x: o.x, y: o.y, p });
+    return p;
+  }
+  let p = fillCache.get(f);
+  if (p) return p;
+  p = buildFillPath(f, 0, 0);
   fillCache.set(f, p);
   return p;
 }
@@ -126,6 +160,8 @@ export interface DrawCtx {
   ctx: CanvasRenderingContext2D;
   /** Full device transform world->device pixels. */
   m: Mat;
+  /** When set, geometry is drawn relative to this world point (deep zoom precision). */
+  o?: Origin;
 }
 
 /** Draw a soft (blurred) path using the shadow trick, which works everywhere canvas does. */
@@ -172,7 +208,7 @@ export function drawStroke(dc: DrawCtx, it: StrokeItem, overrideColor?: string, 
       ctx.fillStyle = color;
       for (const g of ol.groups) {
         ctx.globalAlpha = op * g.alpha;
-        ctx.fill(groupPath(g));
+        ctx.fill(groupPath(g, dc.o));
       }
       if (mult) ctx.restore();
       ctx.globalAlpha = 1;
@@ -180,31 +216,31 @@ export function drawStroke(dc: DrawCtx, it: StrokeItem, overrideColor?: string, 
     }
     case 'pencil': {
       const grain = def.grain ?? 0.75;
-      const pat = grainPattern(ctx, color, grain, Math.max(0.02, it.size / (grain > 0.9 ? 6 : 10)));
+      const pat = grainPattern(ctx, color, grain, it.size / (grain > 0.9 ? 6 : 10));
       ctx.fillStyle = pat;
       for (const g of ol.groups) {
         ctx.globalAlpha = op * g.alpha;
-        ctx.fill(groupPath(g));
+        ctx.fill(groupPath(g, dc.o));
       }
       ctx.globalAlpha = 1;
       break;
     }
     case 'air': {
-      for (const g of ol.groups) softFill(dc, groupPath(g), color, op, it.size * 0.42, 'source-over');
+      for (const g of ol.groups) softFill(dc, groupPath(g, dc.o), color, op, it.size * 0.42, 'source-over');
       break;
     }
     case 'softErase': {
-      for (const g of ol.groups) softFill(dc, groupPath(g), '#000000', op, it.size * 0.42, 'destination-out');
+      for (const g of ol.groups) softFill(dc, groupPath(g, dc.o), '#000000', op, it.size * 0.42, 'destination-out');
       break;
     }
     case 'water': {
       for (const g of ol.groups) {
-        const p = groupPath(g);
+        const p = groupPath(g, dc.o);
         softFill(dc, p, color, op * 0.75, it.size * 0.12, 'multiply');
         ctx.save();
         ctx.globalCompositeOperation = 'multiply';
         ctx.globalAlpha = op * 0.45;
-        ctx.fillStyle = grainPattern(ctx, color, 0.6, Math.max(0.05, it.size / 18));
+        ctx.fillStyle = grainPattern(ctx, color, 0.6, it.size / 18);
         ctx.fill(p);
         ctx.restore();
       }
@@ -217,7 +253,7 @@ export function drawFill(dc: DrawCtx, f: FillItem, overrideColor?: string, alpha
   const { ctx } = dc;
   ctx.globalAlpha = f.opacity * alphaMul;
   ctx.fillStyle = overrideColor || f.color;
-  ctx.fill(fillPath(f), 'evenodd');
+  ctx.fill(fillPath(f, dc.o), 'evenodd');
   ctx.globalAlpha = 1;
 }
 
@@ -225,7 +261,7 @@ export function drawImageItem(dc: DrawCtx, it: ImageItem, alphaMul = 1) {
   const img = getImage(it.src);
   const { ctx } = dc;
   ctx.save();
-  ctx.transform(it.m[0], it.m[1], it.m[2], it.m[3], it.m[4], it.m[5]);
+  ctx.transform(it.m[0], it.m[1], it.m[2], it.m[3], it.m[4] - (dc.o?.x ?? 0), it.m[5] - (dc.o?.y ?? 0));
   if (img) {
     ctx.globalAlpha = it.opacity * alphaMul;
     ctx.imageSmoothingQuality = 'high';
@@ -240,17 +276,20 @@ export function drawImageItem(dc: DrawCtx, it: ImageItem, alphaMul = 1) {
 export function drawText(dc: DrawCtx, t: TextItem, overrideColor?: string, alphaMul = 1) {
   const { ctx } = dc;
   const tm = textMetrics(t);
+  // fonts are laid out at a fixed reference size and scaled, so text stays sharp at any zoom
+  const k = t.size / TEXT_REF;
   ctx.save();
-  ctx.transform(t.m[0], t.m[1], t.m[2], t.m[3], t.m[4], t.m[5]);
+  ctx.transform(t.m[0], t.m[1], t.m[2], t.m[3], t.m[4] - (dc.o?.x ?? 0), t.m[5] - (dc.o?.y ?? 0));
+  ctx.scale(k, k);
   ctx.globalAlpha = t.opacity * alphaMul;
   ctx.fillStyle = overrideColor || t.color;
-  ctx.font = textFont(t);
+  ctx.font = textFont({ ...t, size: TEXT_REF });
   ctx.textBaseline = 'alphabetic';
   tm.lines.forEach((line, i) => {
     let x = 0;
     if (t.align === 'center') x = (tm.w - tm.widths[i]) / 2;
     else if (t.align === 'right') x = tm.w - tm.widths[i];
-    ctx.fillText(line, x, i * tm.lineH + t.size * 0.98);
+    ctx.fillText(line, x / k, (i * tm.lineH + t.size * 0.98) / k);
   });
   ctx.restore();
 }
@@ -262,4 +301,27 @@ export function drawItem(dc: DrawCtx, it: Item, overrideColor?: string, alphaMul
     case 'image': return drawImageItem(dc, it, alphaMul);
     case 'text': return drawText(dc, it, overrideColor, alphaMul);
   }
+}
+
+/**
+ * Set the transform and draw one item at device matrix `m`, switching to origin-relative
+ * geometry when float32 canvas precision would otherwise degrade (far away or deep zoom).
+ */
+export function drawItemAt(ctx: CanvasRenderingContext2D, it: Item, m: Mat, overrideColor?: string, alphaMul = 1) {
+  const dc = deviceCtx(ctx, m, itemBounds(it));
+  drawItem(dc, it, overrideColor, alphaMul);
+}
+
+/** Prepare a draw context (and set the transform) for geometry within `b` at device matrix `m`. */
+export function deviceCtx(ctx: CanvasRenderingContext2D, m: Mat, b: { x0: number; y0: number; x1: number; y1: number }): DrawCtx {
+  const k = matScale(m);
+  const mag = Math.max(Math.abs(b.x0), Math.abs(b.x1), Math.abs(b.y0), Math.abs(b.y1)) * k + Math.abs(m[4]) + Math.abs(m[5]);
+  if (mag < 2e5 || !isFinite(mag)) {
+    ctx.setTransform(m[0], m[1], m[2], m[3], m[4], m[5]);
+    return { ctx, m };
+  }
+  // origin = world point under the device top-left corner (visible coordinates stay small)
+  const o = apply(inv(m), 0, 0);
+  ctx.setTransform(m[0], m[1], m[2], m[3], 0, 0);
+  return { ctx, m, o };
 }

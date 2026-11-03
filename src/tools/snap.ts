@@ -30,7 +30,7 @@ export function perspectiveDirections(doc: DrawingDoc, sx: number, sy: number): 
   p.vps.forEach((vp, i) => {
     const dx = vp.x - sx, dy = vp.y - sy;
     const L = Math.hypot(dx, dy);
-    if (L > 1e-6) out.push({ x: dx / L, y: dy / L, vp: i });
+    if (L > 0) out.push({ x: dx / L, y: dy / L, vp: i });
   });
   // horizon direction
   let hx = 1, hy = 0;

@@ -53,8 +53,8 @@ export function sampleStroke(item: StrokeItem): number[] {
     const x3 = get(i + 2, 0), y3 = get(i + 2, 1);
     const p1 = get(i, 2), p2 = get(i + 1, 2), t1 = get(i, 3), t2 = get(i + 1, 3);
     const segLen = Math.hypot(x2 - x1, y2 - y1);
-    const r = Math.max(0.05, radius((p1 + p2) / 2, (t1 + t2) / 2));
-    const steps = Math.max(1, Math.min(48, Math.ceil(segLen / Math.max(0.15, r * 0.45))));
+    const r = Math.max(item.size * 0.01, radius((p1 + p2) / 2, (t1 + t2) / 2));
+    const steps = Math.max(1, Math.min(48, Math.ceil(segLen / Math.max(item.size * 0.12, r * 0.45))));
     for (let s = 0; s < steps; s++) {
       const t = s / steps, t2_ = t * t, t3 = t2_ * t;
       // centripetal-ish Catmull-Rom (uniform, tension 0.5)
@@ -133,7 +133,7 @@ export function buildOutline(item: StrokeItem): Outline {
   const s = sampleStroke(item);
   const m = s.length / 4;
   const bbox = emptyRect();
-  for (let i = 0; i < m; i++) rectAdd(bbox, s[i * 4], s[i * 4 + 1], s[i * 4 + 2] + 0.5);
+  for (let i = 0; i < m; i++) rectAdd(bbox, s[i * 4], s[i * 4 + 1], s[i * 4 + 2] * 1.05 + item.size * 0.02);
   const nib = def.style === 'nib';
   const graded = def.style === 'pencil' || (!!item.po && def.style !== 'air' && def.style !== 'softErase' && def.style !== 'water');
   const groups = new Map<number, OutlineGroup>();

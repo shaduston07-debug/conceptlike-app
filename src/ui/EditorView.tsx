@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { Editor } from '../core/editor';
 import type { ImageItem, Mat, ToolId } from '../core/types';
 import { Renderer } from '../render/renderer';
-import { InputController } from '../tools/input';
+import { InputController, MAX_ZOOM } from '../tools/input';
 import type { AppCtx, Tool } from '../tools/context';
 import { DrawTool } from '../tools/draw';
 import { EraserTool } from '../tools/eraser';
@@ -190,8 +190,8 @@ export function EditorView({ ed, onExit }: { ed: Editor; onExit: () => void }) {
   };
   function fitRect(b: Rect, frac = 0.84) {
     const { w, h } = viewSize();
-    const bw = Math.max(1, b.x1 - b.x0), bh = Math.max(1, b.y1 - b.y0);
-    const z = Math.min((w * frac) / bw, (h * frac) / bh, 64);
+    const bw = Math.max(1e-9, b.x1 - b.x0), bh = Math.max(1e-9, b.y1 - b.y0);
+    const z = Math.min((w * frac) / bw, (h * frac) / bh, MAX_ZOOM);
     const rot = matRot(ed.doc.view.m);
     const cx = (b.x0 + b.x1) / 2, cy = (b.y0 + b.y1) / 2;
     ed.setView(mul(translate(w / 2, h / 2), mul(rotate(rot), mul(scale(z), translate(-cx, -cy)))));
@@ -257,7 +257,7 @@ export function EditorView({ ed, onExit }: { ed: Editor; onExit: () => void }) {
   };
 
   const s = ed.settings;
-  const zoomPct = Math.round(matScale(ed.doc.view.m) * 100);
+  const zoomPct = formatZoom(matScale(ed.doc.view.m));
   const rotDeg = Math.round(((matRot(ed.doc.view.m) * 180) / Math.PI + 360) % 360);
   const color = currentColor(ed);
   const colorOpacity = ed.tool === 'fill' ? ed.fillOpacity : ed.preset.opacity;
@@ -333,7 +333,7 @@ export function EditorView({ ed, onExit }: { ed: Editor; onExit: () => void }) {
 
           {s.showZoomHud && (
             <button class={'hud' + (s.leftHanded ? ' left' : '')} onClick={() => setPanel(panel === 'zoom' ? null : 'zoom')}>
-              <span>{zoomPct}%</span>{rotDeg !== 0 && <span>{rotDeg}°</span>}
+              <span>{zoomPct}</span>{rotDeg !== 0 && <span>{rotDeg}°</span>}
             </button>
           )}
           {panel === 'zoom' && (
@@ -392,4 +392,13 @@ async function downscaleImage(f: File): Promise<{ url: string; w: number; h: num
   } finally {
     URL.revokeObjectURL(url);
   }
+}
+
+/** Zoom readout that stays readable from 0.05% to 1,000,000%. */
+export function formatZoom(z: number): string {
+  const pct = z * 100;
+  if (pct < 1) return pct.toFixed(2) + '%';
+  if (pct < 10) return pct.toFixed(1) + '%';
+  if (pct < 100000) return Math.round(pct).toLocaleString() + '%';
+  return (pct / 1e6).toFixed(pct < 1e7 ? 2 : 1) + 'M%';
 }

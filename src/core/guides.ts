@@ -11,7 +11,7 @@ export interface GuidePath {
   infinite: boolean;
 }
 
-const FAR = 1e6;
+const FAR = 1e7;
 
 export function guidePath(g: Guide): GuidePath {
   const p = g.pts;

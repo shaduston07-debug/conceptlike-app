@@ -181,7 +181,7 @@ function moveShapeHandle(s: ShapeMeta, key: string, x: number, y: number): Shape
       const get = (k: string) => (k === key ? { x, y } : pts.find((p) => p.key === k)!);
       const a = get('a0'), m = get('am'), b = get('a1');
       const d = 2 * (a.x * (m.y - b.y) + m.x * (b.y - a.y) + b.x * (a.y - m.y));
-      if (Math.abs(d) < 1e-9) return s;
+      if (Math.abs(d) <= 1e-12 * (a.x * a.x + a.y * a.y + b.x * b.x + b.y * b.y + 1e-300)) return s;
       const a2 = a.x ** 2 + a.y ** 2, m2 = m.x ** 2 + m.y ** 2, b2 = b.x ** 2 + b.y ** 2;
       const cx = (a2 * (m.y - b.y) + m2 * (b.y - a.y) + b2 * (a.y - m.y)) / d;
       const cy = (a2 * (b.x - m.x) + m2 * (a.x - b.x) + b2 * (m.x - a.x)) / d;
@@ -213,9 +213,18 @@ export function drawGuidesOverlay(app: AppCtx, ctx: CanvasRenderingContext2D, vi
     ctx.lineWidth = 2;
     ctx.strokeStyle = 'rgba(0,170,255,0.75)';
     ctx.beginPath();
-    for (let i = 0; i < gp.pts.length; i += 2) {
-      const q = apply(view, gp.pts[i], gp.pts[i + 1]);
-      if (i === 0) ctx.moveTo(q.x, q.y); else ctx.lineTo(q.x, q.y);
+    if (gp.infinite) {
+      // extend in screen space so the line spans the view at any zoom
+      const a = apply(view, g.pts[0], g.pts[1]), b = apply(view, g.pts[2], g.pts[3]);
+      const L = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+      const E = 1e5 / L;
+      ctx.moveTo(a.x - (b.x - a.x) * E, a.y - (b.y - a.y) * E);
+      ctx.lineTo(b.x + (b.x - a.x) * E, b.y + (b.y - a.y) * E);
+    } else {
+      for (let i = 0; i < gp.pts.length; i += 2) {
+        const q = apply(view, gp.pts[i], gp.pts[i + 1]);
+        if (i === 0) ctx.moveTo(q.x, q.y); else ctx.lineTo(q.x, q.y);
+      }
     }
     ctx.stroke();
     // halo band showing the snap zone

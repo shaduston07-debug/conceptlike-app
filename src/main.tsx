@@ -24,6 +24,7 @@ function App() {
   useEffect(() => {
     if (!ed) return;
     try { localStorage.setItem('draftwell.lastDoc', ed.doc.id); } catch {}
+    (window as any).__inkfinity = ed; // handy for debugging from Safari Web Inspector
     return ed.on('settings', applyTheme);
   }, [ed]);
   const open = (doc: DrawingDoc) => setEd(new Editor(doc));

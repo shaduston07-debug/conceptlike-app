@@ -2,7 +2,7 @@ import type { Editor } from '../core/editor';
 import type { Item, Layer, Mat } from '../core/types';
 import { mul, scale, rectsOverlap, inv, matScale, emptyRect, rectAdd, rectTransform, type Rect } from '../core/geom';
 import { itemBounds } from '../core/items';
-import { drawItem, setImageLoadCallback } from './draw';
+import { drawItemAt, setImageLoadCallback } from './draw';
 import { drawBackground, visibleWorld } from './background';
 
 export type OverlayDrawer = (ctx: CanvasRenderingContext2D, view: Mat) => void;
@@ -14,12 +14,14 @@ function mkCanvas(cls: string): HTMLCanvasElement {
 }
 
 export function renderLayerItems(ctx: CanvasRenderingContext2D, layer: Layer, m: Mat, world: Rect | null, hidden?: Set<string>) {
-  const dc = { ctx, m };
+  const k = matScale(m);
   for (const it of layer.items) {
     if (hidden && hidden.has(it.id)) continue;
-    if (world && !rectsOverlap(itemBounds(it), world)) continue;
-    ctx.setTransform(m[0], m[1], m[2], m[3], m[4], m[5]);
-    drawItem(dc, it);
+    const b = itemBounds(it);
+    if (world && !rectsOverlap(b, world)) continue;
+    // level of detail: marks smaller than a quarter device pixel are invisible when zoomed far out
+    if ((b.x1 - b.x0) * k < 0.25 && (b.y1 - b.y0) * k < 0.25) continue;
+    drawItemAt(ctx, it, m);
   }
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.globalAlpha = 1;
@@ -261,11 +263,7 @@ export class Renderer {
     ctx.beginPath();
     ctx.rect(x0, y0, x1 - x0, y1 - y0);
     ctx.clip();
-    const dc = { ctx, m };
-    for (const it of items) {
-      ctx.setTransform(m[0], m[1], m[2], m[3], m[4], m[5]);
-      drawItem(dc, it);
-    }
+    for (const it of items) drawItemAt(ctx, it, m);
     ctx.restore();
   }
   endLive() {
@@ -319,11 +317,7 @@ export class Renderer {
       }
     }
     if (layer.visible) {
-      const dc = { ctx, m };
-      for (const it of added) {
-        ctx.setTransform(m[0], m[1], m[2], m[3], m[4], m[5]);
-        drawItem(dc, it);
-      }
+      for (const it of added) drawItemAt(ctx, it, m);
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.globalAlpha = 1;
       ctx.globalCompositeOperation = 'source-over';

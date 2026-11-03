@@ -18,7 +18,7 @@ export function mul(m: Mat, n: Mat): Mat {
 }
 
 export function inv(m: Mat): Mat {
-  const det = m[0] * m[3] - m[1] * m[2] || 1e-12;
+  const det = m[0] * m[3] - m[1] * m[2] || 1e-300;
   const a = m[3] / det, b = -m[1] / det, c = -m[2] / det, d = m[0] / det;
   return [a, b, c, d, -(a * m[4] + c * m[5]), -(b * m[4] + d * m[5])];
 }
@@ -91,7 +91,7 @@ export function segIntersect(
 ): { t: number; u: number } | null {
   const rx = bx - ax, ry = by - ay, sx = dx - cx, sy = dy - cy;
   const den = rx * sy - ry * sx;
-  if (Math.abs(den) < 1e-12) return null;
+  if (Math.abs(den) <= 1e-12 * (rx * rx + ry * ry + sx * sx + sy * sy)) return null;
   const qx = cx - ax, qy = cy - ay;
   const t = (qx * sy - qy * sx) / den;
   const u = (qx * ry - qy * rx) / den;
