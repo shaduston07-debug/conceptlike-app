@@ -177,6 +177,21 @@ export interface DrawingDoc {
   artboard: Artboard | null;
   view: DocView;
   guide: Guide | null;
+  /** Printable page frame placed on the infinite canvas (export to paper sizes). */
+  page?: PageFrame | null;
+}
+
+export interface PageFrame {
+  preset: string; // e.g. 'A4', 'Custom'
+  wmm: number; // portrait width in mm
+  hmm: number; // portrait height in mm
+  landscape: boolean;
+  x: number; // world centre
+  y: number;
+  /** Print scale: 1 = 100% (one world unit = 1/96 inch on paper). */
+  scale: number;
+  dpi: number;
+  visible: boolean;
 }
 
 export interface DocMeta {

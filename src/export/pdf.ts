@@ -96,9 +96,10 @@ const latin1 = (s: string) => s.replace(/[^\x20-\x7e\xa0-\xff]/g, '?').replace(/
  * Airbrush/soft effects are approximated with transparency. When `raster` is true the page is a single
  * high resolution image instead (pixel-identical to the canvas).
  */
-export async function exportPDF(doc: DrawingDoc, r: Rect, opts: { transparent: boolean; raster: boolean; scale: number }): Promise<Uint8Array> {
+export async function exportPDF(doc: DrawingDoc, r: Rect, opts: { transparent: boolean; raster: boolean; scale: number; pageMM?: { w: number; h: number } }): Promise<Uint8Array> {
   const W = r.x1 - r.x0, H = r.y1 - r.y0;
-  const pt = 0.75; // 96 dpi -> 72 dpi
+  // 96 dpi -> 72 dpi, or exact paper size when printing to a page frame
+  const pt = opts.pageMM ? (opts.pageMM.w * 72) / 25.4 / W : 0.75;
   const pw = W * pt, ph = H * pt;
   const pdf = new PdfWriter();
   const catalog = pdf.alloc(), pages = pdf.alloc(), page = pdf.alloc(), content = pdf.alloc(), font = pdf.alloc();

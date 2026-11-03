@@ -7,7 +7,7 @@ import { apply, inv, matScale } from '../core/geom';
 import { UNITS, PER_PX } from '../core/measure';
 import { ARTBOARD_PRESETS } from '../core/doc';
 
-const PAPERS: { v: PaperKind; l: string }[] = [
+export const PAPERS: { v: PaperKind; l: string }[] = [
   { v: 'blank', l: 'Blank' }, { v: 'dots', l: 'Dots' }, { v: 'grid', l: 'Grid' }, { v: 'graph', l: 'Graph' }, { v: 'lines', l: 'Lines' }, { v: 'iso', l: 'Isometric' },
 ];
 const GUIDES: GuideKind[] = ['line', 'circle', 'ellipse', 'rect', 'polygon', 'arc', 'curve', 'protractor'];
@@ -171,7 +171,7 @@ export function PrecisionPanel({ ed, onClose, editPerspective, setEditPerspectiv
   );
 }
 
-function PaperIcon({ kind }: { kind: PaperKind }) {
+export function PaperIcon({ kind }: { kind: PaperKind }) {
   const inner: Record<PaperKind, string> = {
     blank: '',
     dots: Array.from({ length: 16 }, (_, i) => `<circle cx="${4 + (i % 4) * 5.3}" cy="${4 + Math.floor(i / 4) * 5.3}" r="0.9" fill="currentColor"/>`).join(''),

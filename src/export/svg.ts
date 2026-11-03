@@ -61,7 +61,7 @@ function itemSVG(it: Item, defs: string[]): string {
   }
 }
 
-export function exportSVG(doc: DrawingDoc, r: Rect, opts: { transparent: boolean; onlyIds?: Set<string> }): string {
+export function exportSVG(doc: DrawingDoc, r: Rect, opts: { transparent: boolean; onlyIds?: Set<string>; pageMM?: { w: number; h: number } }): string {
   const w = r.x1 - r.x0, h = r.y1 - r.y0;
   const defs: string[] = [];
   const body: string[] = [];
@@ -76,7 +76,7 @@ export function exportSVG(doc: DrawingDoc, r: Rect, opts: { transparent: boolean
     body.push('</g>');
   }
   return `<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" width="${f(w)}" height="${f(h)}" viewBox="${f(r.x0)} ${f(r.y0)} ${f(w)} ${f(h)}">
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" width="${opts.pageMM ? f(opts.pageMM.w) + 'mm' : f(w)}" height="${opts.pageMM ? f(opts.pageMM.h) + 'mm' : f(h)}" viewBox="${f(r.x0)} ${f(r.y0)} ${f(w)} ${f(h)}">
 <title>${esc(doc.name)}</title>
 <defs>${defs.join('')}</defs>
 ${body.join('\n')}

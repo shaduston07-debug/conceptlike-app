@@ -1,6 +1,6 @@
 import type {
   DrawingDoc, Item, Layer, ToolId, ToolPreset, EraserMode, SelectMode, SliceMode, Mat, Guide, Background,
-  Perspective, Measure, Artboard,
+  Perspective, Measure, Artboard, PageFrame,
 } from './types';
 import { newLayer } from './doc';
 import { loadSettings, saveSettings, loadPresets, savePresets, type Settings } from './settings';
@@ -411,6 +411,11 @@ export class Editor {
   setArtboard(a: Artboard | null) {
     this.doc.artboard = a;
     this.commit('Artboard');
+  }
+  setPage(pg: PageFrame | null) {
+    this.doc.page = pg;
+    this.dirty = true;
+    this.emit('overlay', 'ui');
   }
   setGuide(g: Guide | null) {
     this.doc.guide = g;

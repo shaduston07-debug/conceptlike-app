@@ -5,8 +5,9 @@ import { drawBackground } from '../render/background';
 import { itemsBounds, itemBounds } from '../core/items';
 import { emptyRect, rectAdd, rectValid } from '../core/geom';
 import { getImage } from '../render/draw';
+import { pageRect } from '../core/page';
 
-export type ExportArea = 'drawing' | 'artboard' | 'view' | 'selection';
+export type ExportArea = 'drawing' | 'artboard' | 'view' | 'selection' | 'page';
 
 export const MAX_PIXELS = 16_000_000;
 export const MAX_SIDE = 8192;
@@ -30,6 +31,7 @@ export function exportRect(doc: DrawingDoc, area: ExportArea, viewRect: Rect, se
     const a = doc.artboard;
     return { x0: a.x, y0: a.y, x1: a.x + a.w, y1: a.y + a.h };
   }
+  if (area === 'page' && doc.page) return pageRect(doc.page);
   if (area === 'view') return viewRect;
   if (area === 'selection' && selection) {
     const pad = 16;

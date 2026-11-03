@@ -1,6 +1,8 @@
 import { useState } from 'preact/hooks';
 import type { Editor } from '../core/editor';
-import { PanelTitle, Seg, ToggleRow, toast } from './common';
+import { PanelTitle, Seg, ToggleRow, toast, useEditor } from './common';
+import { PageSettings, ensurePage } from './PageSettings';
+import { pagePixels, pageDims } from '../core/page';
 import { Icon } from './icons';
 import { exportRect, clampScale, renderRegion, canvasToBlob, preloadImages, renderLayerToCanvas, type ExportArea } from '../export/raster';
 import { exportSVG } from '../export/svg';
@@ -26,7 +28,12 @@ const FORMATS: { v: Fmt; l: string; d: string }[] = [
 export function ExportPanel({ ed, onClose, viewSize }: { ed: Editor; onClose: () => void; viewSize: () => { w: number; h: number } }) {
   const [fmt, setFmt] = useState<Fmt>(() => (localStorage.getItem('draftwell.exfmt') as Fmt) || 'png');
   const hasSel = ed.selection.size > 0;
-  const [area, setArea] = useState<ExportArea>(hasSel ? 'selection' : ed.doc.artboard ? 'artboard' : 'drawing');
+  const [area, setAreaRaw] = useState<ExportArea>(hasSel ? 'selection' : ed.doc.page ? 'page' : ed.doc.artboard ? 'artboard' : 'drawing');
+  const setArea = (a: ExportArea) => {
+    if (a === 'page') ensurePage(ed, viewSize);
+    setAreaRaw(a);
+  };
+  useEditor(ed, ['ui', 'overlay']);
   const [scale, setScale] = useState(2);
   const [transparent, setTransparent] = useState(false);
   const [grid, setGrid] = useState(ed.doc.background.exportGrid);
@@ -37,7 +44,10 @@ export function ExportPanel({ ed, onClose, viewSize }: { ed: Editor; onClose: ()
   const viewRect = visibleWorld(doc.view.m, vs.w, vs.h);
   const selB = ed.selectionBounds();
   const r: Rect = exportRect(doc, area, viewRect, selB);
-  const s = clampScale(r, scale);
+  const page = area === 'page' ? ed.doc.page : null;
+  const pagePx = page ? pagePixels(page) : null;
+  const pageMM = page ? pageDims(page) : null;
+  const s = clampScale(r, pagePx ? pagePx.w / (r.x1 - r.x0) : scale);
   const pxW = Math.round((r.x1 - r.x0) * s), pxH = Math.round((r.y1 - r.y0) * s);
   const vector = fmt === 'svg' || (fmt === 'pdf' && !raster);
   const fname = (ext: string) => `${(doc.name || 'Drawing').replace(/[\\/:*?"<>|]+/g, '_')}.${ext}`;
@@ -52,9 +62,9 @@ export function ExportPanel({ ed, onClose, viewSize }: { ed: Editor; onClose: ()
         return { name: fname(fmt), mime: fmt === 'png' ? 'image/png' : 'image/jpeg', blob };
       }
       case 'svg':
-        return { name: fname('svg'), mime: 'image/svg+xml', blob: new Blob([exportSVG(doc, r, { transparent, onlyIds })], { type: 'image/svg+xml' }) };
+        return { name: fname('svg'), mime: 'image/svg+xml', blob: new Blob([exportSVG(doc, r, { transparent, onlyIds, pageMM: pageMM ? { w: pageMM.wmm, h: pageMM.hmm } : undefined })], { type: 'image/svg+xml' }) };
       case 'pdf': {
-        const d = await exportPDF(onlyIds ? { ...doc, layers: doc.layers.map((l) => ({ ...l, items: l.items.filter((i) => onlyIds.has(i.id)) })) } : doc, r, { transparent, raster, scale: s });
+        const d = await exportPDF(onlyIds ? { ...doc, layers: doc.layers.map((l) => ({ ...l, items: l.items.filter((i) => onlyIds.has(i.id)) })) } : doc, r, { transparent, raster, scale: s, pageMM: pageMM ? { w: pageMM.wmm, h: pageMM.hmm } : undefined });
         return { name: fname('pdf'), mime: 'application/pdf', blob: new Blob([d as BlobPart], { type: 'application/pdf' }) };
       }
       case 'psd': {
@@ -115,11 +125,15 @@ export function ExportPanel({ ed, onClose, viewSize }: { ed: Editor; onClose: ()
           <h4>Area</h4>
           <Seg value={area} onChange={setArea} options={[
             { v: 'drawing', l: 'Drawing' },
+            { v: 'page', l: 'Page' },
             ...(doc.artboard ? [{ v: 'artboard' as ExportArea, l: 'Artboard' }] : []),
             { v: 'view', l: 'View' },
             ...(hasSel ? [{ v: 'selection' as ExportArea, l: 'Selection' }] : []),
           ]} />
-          {!vector && (
+          {area === 'page' && ed.doc.page && (
+            <div style={{ marginTop: '12px' }}><PageSettings ed={ed} viewSize={viewSize} /></div>
+          )}
+          {!vector && area !== 'page' && (
             <>
               <h4 style={{ marginTop: '12px' }}>Resolution</h4>
               <Seg value={scale} onChange={setScale} options={[{ v: 1, l: '1×' }, { v: 2, l: '2×' }, { v: 3, l: '3×' }, { v: 4, l: '4×' }, { v: 8, l: '8×' }]} />

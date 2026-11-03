@@ -19,7 +19,8 @@ import { Icon } from './icons';
 import { Rail, QuickSliders, ToolOptions, ToolStrip, currentColor, type PanelId } from './Toolbar';
 import { ColorPicker } from './ColorPicker';
 import { LayersPanel } from './LayersPanel';
-import { PrecisionPanel } from './PrecisionPanel';
+import { PrecisionPanel, PaperIcon } from './PrecisionPanel';
+import { PaperPopover } from './PaperPopover';
 import { SettingsPanel } from './SettingsPanel';
 import { ExportPanel } from './ExportPanel';
 import { LibraryPanel } from './LibraryPanel';
@@ -106,7 +107,7 @@ export function EditorView({ ed, onExit }: { ed: Editor; onExit: () => void }) {
       setPanelRaw(null);
     }, () => {
       // touching the canvas dismisses transient popovers; docked panels stay open
-      setPanelRaw((p) => (p === 'layers' || p === 'precision' ? p : null));
+      setPanelRaw((p) => (p === 'layers' || p === 'precision' || p === 'paper' ? p : null));
     });
     inputRef.current = ic;
     // initial view
@@ -297,6 +298,7 @@ export function EditorView({ ed, onExit }: { ed: Editor; onExit: () => void }) {
               <button class={'ibtn' + (s.liveShapes ? ' on' : '')} title="Live shapes" onClick={() => { ed.setSettings({ liveShapes: !s.liveShapes }); toast(s.liveShapes ? 'Live shapes off' : 'Live shapes on'); }}><Icon name="shape" /></button>
               <button class={'ibtn' + (s.gridSnap ? ' on' : '')} title="Snap to grid" onClick={() => { ed.setSettings({ gridSnap: !s.gridSnap }); toast(s.gridSnap ? 'Grid snap off' : 'Grid snap on'); }}><Icon name="magnet" /></button>
               <button class={'ibtn' + (s.measureOn ? ' on' : '')} title="Measure" onClick={() => ed.setSettings({ measureOn: !s.measureOn })}><Icon name="measure" /></button>
+              <button class={'ibtn' + (panel === 'paper' ? ' on' : '')} title="Paper" onClick={() => setPanel(panel === 'paper' ? null : 'paper')}><PaperIcon kind={ed.doc.background.paper} /></button>
             </div>
             <span class="spacer" />
             {ed.pencilDetected && s.pencilOnly !== 'off' && (
@@ -352,6 +354,7 @@ export function EditorView({ ed, onExit }: { ed: Editor; onExit: () => void }) {
               onPick={() => { setPanel(null); ed.setTool('eyedropper'); }} />
           )}
           {panel === 'toolopts' && <ToolOptions ed={ed} onClose={() => setPanel(null)} />}
+          {panel === 'paper' && <PaperPopover ed={ed} onClose={() => setPanel(null)} onMore={() => setPanel('precision')} />}
           {panel === 'layers' && <LayersPanel ed={ed} onClose={() => setPanel(null)} />}
           {panel === 'precision' && <PrecisionPanel ed={ed} onClose={() => setPanel(null)} editPerspective={editPerspective} setEditPerspective={setEditPerspective} viewSize={viewSize} />}
           {panel === 'settings' && <SettingsPanel ed={ed} onClose={() => setPanel(null)} />}

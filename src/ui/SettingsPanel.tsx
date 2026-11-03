@@ -26,6 +26,8 @@ export function SettingsPanel({ ed, onClose }: { ed: Editor; onClose: () => void
       </div>
       <div class="sec">
         <h4>Gestures</h4>
+        <ToggleRow label="Double-tap to undo" on={s.doubleTapUndo} onChange={(v) => set({ doubleTapUndo: v })} hint="Tap twice quickly with one finger anywhere on the canvas." />
+        <ToggleRow label="Triple-tap to redo" on={s.tripleTapRedo} onChange={(v) => set({ tripleTapRedo: v })} />
         <ToggleRow label="Two-finger tap to undo" on={s.twoFingerUndo} onChange={(v) => set({ twoFingerUndo: v })} />
         <ToggleRow label="Three-finger tap to redo" on={s.threeFingerRedo} onChange={(v) => set({ threeFingerRedo: v })} />
         <ToggleRow label="Touch & hold for color picker" on={s.longPressEyedropper} onChange={(v) => set({ longPressEyedropper: v })} />

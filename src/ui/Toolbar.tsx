@@ -9,7 +9,7 @@ import { useEffect, useRef } from 'preact/hooks';
 import { drawStroke } from '../render/draw';
 import type { StrokeItem } from '../core/types';
 
-export type PanelId = null | 'color' | 'toolopts' | 'layers' | 'precision' | 'settings' | 'export' | 'library' | 'history' | 'import' | 'transform' | 'zoom';
+export type PanelId = null | 'color' | 'toolopts' | 'layers' | 'precision' | 'settings' | 'export' | 'library' | 'history' | 'import' | 'transform' | 'zoom' | 'paper';
 
 const UTIL_TOOLS: { id: ToolId; icon: string; label: string }[] = [
   { id: 'select', icon: 'select', label: 'Select' },

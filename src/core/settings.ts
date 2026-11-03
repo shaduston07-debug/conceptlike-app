@@ -9,6 +9,8 @@ export interface Settings {
   pencilOnly: 'auto' | 'on' | 'off';
   pressureCurve: number; // gamma: <1 softer, >1 firmer
   twoFingerUndo: boolean;
+  doubleTapUndo: boolean;
+  tripleTapRedo: boolean;
   threeFingerRedo: boolean;
   longPressEyedropper: boolean;
   rotateCanvas: boolean;
@@ -39,6 +41,8 @@ export const DEFAULT_SETTINGS: Settings = {
   pencilOnly: 'auto',
   pressureCurve: 1,
   twoFingerUndo: true,
+  doubleTapUndo: true,
+  tripleTapRedo: true,
   threeFingerRedo: true,
   longPressEyedropper: true,
   rotateCanvas: true,

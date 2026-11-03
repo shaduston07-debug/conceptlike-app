@@ -27,7 +27,9 @@ export class InputController {
     moved: boolean;
   } = null;
   private tapCandidate: { n: number; start: number; moved: boolean } | null = null;
-  private panPtr: { id: number; x: number; y: number; startView: Mat } | null = null;
+  private panPtr: { id: number; x: number; y: number; startView: Mat; t?: number } | null = null;
+  private tapSeq: { n: number; t: number; x: number; y: number } | null = null;
+  private tapTimer = 0;
   private handleDrag: { h: Handle; start: Ptr; id: number } | null = null;
   private longPressTimer = 0;
   private picking: { id: number; x: number; y: number; color: string | null } | null = null;
@@ -179,7 +181,7 @@ export class InputController {
 
     if (!this.drawsWith(p.type)) {
       // pencil-only mode: one finger pans; long-press picks colour
-      this.panPtr = { id: e.pointerId, x: p.x, y: p.y, startView: ed.doc.view.m };
+      this.panPtr = { id: e.pointerId, x: p.x, y: p.y, startView: ed.doc.view.m, t: performance.now() };
       this.armLongPress(e.pointerId, p);
       return;
     }
@@ -369,19 +371,61 @@ export class InputController {
       return;
     }
     if (this.panPtr && this.panPtr.id === e.pointerId) {
-      const moved = Math.hypot(this.local(e).x - this.panPtr.x, this.local(e).y - this.panPtr.y) > 6;
+      const l = this.local(e);
+      const moved = Math.hypot(l.x - this.panPtr.x, l.y - this.panPtr.y) > 8;
+      const quick = performance.now() - (this.panPtr.t ?? 0) < 300;
+      const isTouch = e.pointerType === 'touch';
+      if (moved) this.tapSeq = null;
       this.panPtr = null;
       this.cancelLongPress();
-      if (!moved) this.onViewTap?.();
+      if (!moved && isTouch && quick) this.registerTap(l.x, l.y);
+      else if (!moved) this.onViewTap?.();
       return;
     }
     if (this.toolPtr === e.pointerId) {
       this.cancelLongPress();
       this.toolPtr = null;
+      // with finger drawing on, a quick still tap is a gesture (double/triple tap), not a dot
+      if (e.pointerType === 'touch' && (ed.tool === 'draw' || ed.tool === 'eraser') && (ed.settings.doubleTapUndo || ed.settings.tripleTapRedo)) {
+        const l = this.local(e);
+        const t = this.touches.get(e.pointerId);
+        const sx = t ? t.sx : l.x, sy = t ? t.sy : l.y;
+        if (performance.now() - this.toolStarted < 250 && Math.hypot(l.x - sx, l.y - sy) < 8) {
+          this.getTool().cancel();
+          this.registerTap(l.x, l.y);
+          return;
+        }
+      }
       this.getTool().up(this.toPtr(e));
     }
     void ed;
   };
+
+  /** One-finger tap sequences: 1 = dismiss panels, 2 = undo, 3 = redo. */
+  private registerTap(x: number, y: number) {
+    const now = performance.now();
+    const s = this.ed.settings;
+    const sq = this.tapSeq;
+    if (sq && now - sq.t < 350 && Math.hypot(x - sq.x, y - sq.y) < 60) {
+      sq.n++;
+      sq.t = now;
+    } else this.tapSeq = { n: 1, t: now, x, y };
+    clearTimeout(this.tapTimer);
+    const n = this.tapSeq!.n;
+    const resolve = () => {
+      const count = this.tapSeq?.n ?? 0;
+      this.tapSeq = null;
+      if (count === 1) this.onViewTap?.();
+      else if (count === 2 && s.doubleTapUndo) { this.ed.undo(); this.app.toast('Undo'); }
+      else if (count >= 3) {
+        if (s.tripleTapRedo) { this.ed.redo(); this.app.toast('Redo'); }
+        else if (s.doubleTapUndo) { this.ed.undo(); this.app.toast('Undo'); }
+      }
+    };
+    if (n >= 3) resolve();
+    else if (n === 2 && !s.tripleTapRedo) resolve();
+    else this.tapTimer = window.setTimeout(resolve, 320);
+  }
 
   private finishTap() {
     const tc = this.tapCandidate;

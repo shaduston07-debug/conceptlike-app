@@ -10,6 +10,7 @@ import { itemBounds } from '../core/items';
 import { visibleWorld } from '../render/background';
 import { label } from './draw';
 import { ACCENT } from './select';
+import { pageRect, pageLabel } from '../core/page';
 
 /** All draggable on-canvas handles (guides, vanishing points, live shapes). */
 export function collectHandles(app: AppCtx, editPerspective: boolean): Handle[] {
@@ -59,6 +60,38 @@ export function collectHandles(app: AppCtx, editPerspective: boolean): Handle[] 
           ed.commit('Perspective');
         },
       });
+    });
+  }
+  // printable page frame: centre = move, corner = scale
+  const pg = ed.doc.page;
+  if (pg && pg.visible) {
+    const r = pageRect(pg);
+    const c = apply(view, pg.x, pg.y);
+    const orig = { ...pg };
+    out.push({
+      x: c.x, y: c.y,
+      drag: (p, start) => {
+        const cur = ed.doc.page;
+        if (!cur) return;
+        ed.setPage({ ...cur, x: orig.x + (p.wx - start.wx), y: orig.y + (p.wy - start.wy) });
+      },
+      end: () => ed.emit('ui'),
+    });
+    const corner = apply(view, r.x1, r.y1);
+    const d0 = Math.hypot(r.x1 - pg.x, r.y1 - pg.y);
+    out.push({
+      x: corner.x, y: corner.y,
+      drag: (p) => {
+        const cur = ed.doc.page;
+        if (!cur) return;
+        const d = Math.hypot(p.wx - orig.x, p.wy - orig.y);
+        let scale = Math.max(0.01, orig.scale * (d / d0));
+        // snap to round percentages
+        const pct = scale * 100;
+        for (const snap of [10, 20, 25, 50, 75, 100, 150, 200, 250, 300, 400, 500, 1000]) if (Math.abs(pct - snap) / snap < 0.03) scale = snap / 100;
+        ed.setPage({ ...cur, scale });
+      },
+      end: () => ed.emit('ui'),
     });
   }
   // live shape handles
@@ -273,7 +306,56 @@ export function drawGuidesOverlay(app: AppCtx, ctx: CanvasRenderingContext2D, vi
       ctx.stroke();
     }
   }
+  const pg = ed.doc.page;
+  if (pg && pg.visible) drawPageFrame(app, ctx, view);
   if (ed.settings.measureOn) drawMeasurements(app, ctx, view);
+}
+
+function drawPageFrame(app: AppCtx, ctx: CanvasRenderingContext2D, view: Mat) {
+  const pg = app.editor.doc.page!;
+  const r = pageRect(pg);
+  const pts = [apply(view, r.x0, r.y0), apply(view, r.x1, r.y0), apply(view, r.x1, r.y1), apply(view, r.x0, r.y1)];
+  const W = app.renderer.w, H = app.renderer.h;
+  ctx.save();
+  // shade everything outside the page so the printable area reads clearly
+  ctx.beginPath();
+  ctx.rect(-10, -10, W + 20, H + 20);
+  ctx.moveTo(pts[0].x, pts[0].y);
+  for (let i = 3; i >= 1; i--) ctx.lineTo(pts[i].x, pts[i].y);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(30,40,60,0.10)';
+  ctx.fill('evenodd');
+  ctx.beginPath();
+  pts.forEach((q, i) => (i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y)));
+  ctx.closePath();
+  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = 'rgba(255,140,0,0.95)';
+  ctx.setLineDash([8, 5]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  const top = pts.reduce((a, b) => (b.y < a.y ? b : a));
+  label(ctx, (pts[0].x + pts[1].x) / 2, Math.min(pts[0].y, pts[1].y) - 16 + 0 * top.y, pageLabel(pg), 'rgba(230,120,0,0.95)');
+  // handles
+  const c = apply(view, pg.x, pg.y);
+  ctx.beginPath();
+  ctx.arc(c.x, c.y, 10, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(255,140,0,0.95)';
+  ctx.fill();
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  ctx.moveTo(c.x - 5, c.y); ctx.lineTo(c.x + 5, c.y);
+  ctx.moveTo(c.x, c.y - 5); ctx.lineTo(c.x, c.y + 5);
+  ctx.stroke();
+  const k = pts[2];
+  ctx.beginPath();
+  ctx.rect(k.x - 7, k.y - 7, 14, 14);
+  ctx.fillStyle = '#fff';
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255,140,0,1)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.restore();
 }
 
 function drawMeasurements(app: AppCtx, ctx: CanvasRenderingContext2D, view: Mat) {
