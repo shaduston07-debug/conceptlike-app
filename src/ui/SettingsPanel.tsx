@@ -50,7 +50,7 @@ export function SettingsPanel({ ed, onClose }: { ed: Editor; onClose: () => void
       </div>
       <div class="sec">
         <button class="btn wide" onClick={() => { if (confirm('Restore default settings?')) set({ ...DEFAULT_SETTINGS, palettes: s.palettes, recentColors: s.recentColors }); }}>Restore defaults</button>
-        <div class="hint" style={{ textAlign: 'center' }}>Draftwell 1.0 · Shortcuts: ⌘Z undo, ⇧⌘Z redo, V select, E eraser, B brush, [ ] size, Space+drag pan</div>
+        <div class="hint" style={{ textAlign: 'center' }}>Inkfinity 1.0 · Shortcuts: ⌘Z undo, ⇧⌘Z redo, V select, E eraser, B brush, [ ] size, Space+drag pan</div>
       </div>
     </div>
   );

@@ -218,7 +218,7 @@ export function EditorView({ ed, onExit }: { ed: Editor; onExit: () => void }) {
   const onFiles = async (files: FileList | null) => {
     if (!files) return;
     for (const f of Array.from(files)) {
-      if (/\.draftwell$|json/i.test(f.name) || f.type === 'application/json') {
+      if (/\.(inkfinity|draftwell)$|json/i.test(f.name) || f.type === 'application/json') {
         try {
           const d = normalizeDoc(JSON.parse(await f.text()));
           // merge layers into the current drawing
@@ -365,7 +365,7 @@ export function EditorView({ ed, onExit }: { ed: Editor; onExit: () => void }) {
 
           {palette && <QuickPalette ed={ed} x={palette.x} y={palette.y} w={viewSize().w} h={viewSize().h} onClose={() => setPalette(null)} />}
           {toasts.map((t) => <div key={t.id} class="toast">{t.msg}</div>)}
-          <input ref={fileRef} type="file" accept="image/*,.draftwell,application/json" multiple style={{ display: 'none' }}
+          <input ref={fileRef} type="file" accept="image/*,.inkfinity,.draftwell,application/json" multiple style={{ display: 'none' }}
             onChange={(e) => { onFiles((e.target as HTMLInputElement).files); (e.target as HTMLInputElement).value = ''; }} />
         </>
       )}

@@ -1,4 +1,4 @@
-// Core data model for Draftwell documents.
+// Core data model for Inkfinity documents.
 // Items are treated as immutable: any edit produces a new object. This keeps
 // undo/redo trivial and lets the renderer cache derived geometry per object.
 

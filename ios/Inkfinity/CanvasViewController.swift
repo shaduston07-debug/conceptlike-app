@@ -1,12 +1,12 @@
 import UIKit
 import WebKit
 
-/// Hosts the Draftwell drawing engine (bundled web app) full screen and bridges
+/// Hosts the Inkfinity drawing engine (bundled web app) full screen and bridges
 /// storage, sharing, haptics and Apple Pencil interactions to it.
 final class CanvasViewController: UIViewController, WKScriptMessageHandlerWithReply, WKUIDelegate, WKNavigationDelegate, UIPencilInteractionDelegate {
     private var webView: WKWebView!
     private let store = KVStore()
-    private let io = DispatchQueue(label: "app.draftwell.io", qos: .userInitiated)
+    private let io = DispatchQueue(label: "app.inkfinity.io", qos: .userInitiated)
     private var canvasFeedbackStorage: AnyObject?
 
     @available(iOS 17.5, *)
@@ -24,7 +24,7 @@ final class CanvasViewController: UIViewController, WKScriptMessageHandlerWithRe
         let webRoot = Bundle.main.resourceURL!.appendingPathComponent("web", isDirectory: true)
         config.setURLSchemeHandler(SchemeHandler(root: webRoot), forURLScheme: "app")
         let ucc = WKUserContentController()
-        ucc.addScriptMessageHandler(self, contentWorld: .page, name: "draftwell")
+        ucc.addScriptMessageHandler(self, contentWorld: .page, name: "inkfinity")
         ucc.addUserScript(makeStorageShim())
         config.userContentController = ucc
         config.preferences.javaScriptCanOpenWindowsAutomatically = false
@@ -63,7 +63,7 @@ final class CanvasViewController: UIViewController, WKScriptMessageHandlerWithRe
         let source = """
         (function () {
           var data = \(json);
-          function post(m) { try { window.webkit.messageHandlers.draftwell.postMessage(m); } catch (e) {} }
+          function post(m) { try { window.webkit.messageHandlers.inkfinity.postMessage(m); } catch (e) {} }
           var shim = {
             getItem: function (k) { k = String(k); return Object.prototype.hasOwnProperty.call(data, k) ? data[k] : null; },
             setItem: function (k, v) { k = String(k); v = String(v); data[k] = v; post({ op: 'set', key: 'ls:' + k, value: v }); },
@@ -73,7 +73,7 @@ final class CanvasViewController: UIViewController, WKScriptMessageHandlerWithRe
             get length() { return Object.keys(data).length; }
           };
           try { Object.defineProperty(window, 'localStorage', { value: shim, configurable: true }); } catch (e) {}
-          window.__draftwellNative = true;
+          window.__inkfinityNative = true;
         })();
         """
         return WKUserScript(source: source, injectionTime: .atDocumentStart, forMainFrameOnly: true)

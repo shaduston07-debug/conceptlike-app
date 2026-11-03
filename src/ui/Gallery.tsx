@@ -47,10 +47,10 @@ export function Gallery({ onOpen }: { onOpen: (doc: DrawingDoc) => void }) {
   return (
     <div class="gallery">
       <div class="g-head">
-        <h1><img class="g-logo" src="./icon.png" alt="" />Draftwell</h1>
+        <h1><img class="g-logo" src="./icon.png" alt="" />Inkfinity</h1>
         <label class="btn" style={{ cursor: 'pointer' }}>
           <Icon name="import" size={18} />Import
-          <input type="file" accept=".draftwell,application/json" multiple style={{ display: 'none' }} onChange={(e) => { importFile((e.target as HTMLInputElement).files); (e.target as HTMLInputElement).value = ''; }} />
+          <input type="file" accept=".inkfinity,.draftwell,application/json" multiple style={{ display: 'none' }} onChange={(e) => { importFile((e.target as HTMLInputElement).files); (e.target as HTMLInputElement).value = ''; }} />
         </label>
         <button class="btn primary" onClick={() => setCreating(true)}><Icon name="plus" size={18} />New</button>
       </div>
@@ -117,7 +117,7 @@ export function Gallery({ onOpen }: { onOpen: (doc: DrawingDoc) => void }) {
           <button onClick={async () => {
             const d = await loadDoc(menu.id);
             setMenu(null);
-            if (d) await shareFile(d.name + '.draftwell', 'application/json', new Blob([serializeDoc(d)], { type: 'application/json' }));
+            if (d) await shareFile(d.name + '.inkfinity', 'application/json', new Blob([serializeDoc(d)], { type: 'application/json' }));
           }}><Icon name="share" size={18} />Share drawing file</button>
           <button class="danger" onClick={async () => {
             const cur = docs!.find((x) => x.id === menu.id)!;

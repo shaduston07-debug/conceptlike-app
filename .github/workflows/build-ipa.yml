@@ -41,36 +41,36 @@ jobs:
         run: |
           cd ios
           xcodebuild \
-            -project Draftwell.xcodeproj \
-            -scheme Draftwell \
+            -project Inkfinity.xcodeproj \
+            -scheme Inkfinity \
             -configuration Release \
             -sdk iphoneos \
             -destination 'generic/platform=iOS' \
             -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
             build | tee build.log | grep -E "error:|warning: .*Swift|BUILD (SUCCEEDED|FAILED)" || true
-          test -d build/Build/Products/Release-iphoneos/Draftwell.app || (tail -80 build.log && exit 1)
+          test -d build/Build/Products/Release-iphoneos/Inkfinity.app || (tail -80 build.log && exit 1)
 
       - name: Package IPA
         run: |
           cd ios
           rm -rf Payload && mkdir Payload
-          cp -R build/Build/Products/Release-iphoneos/Draftwell.app Payload/
-          zip -qry ../Draftwell.ipa Payload
-          ls -la ../Draftwell.ipa
+          cp -R build/Build/Products/Release-iphoneos/Inkfinity.app Payload/
+          zip -qry ../Inkfinity.ipa Payload
+          ls -la ../Inkfinity.ipa
 
       - uses: actions/upload-artifact@v4
         with:
-          name: Draftwell-ipa
-          path: Draftwell.ipa
+          name: Inkfinity-ipa
+          path: Inkfinity.ipa
 
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ github.run_number }}
-          name: Draftwell build ${{ github.run_number }}
+          name: Inkfinity build ${{ github.run_number }}
           target_commitish: ${{ github.sha }}
-          files: Draftwell.ipa
+          files: Inkfinity.ipa
           body: |
-            Unsigned iPad build of Draftwell from `${{ github.ref_name }}` (${{ github.sha }}).
+            Unsigned iPad build of Inkfinity from `${{ github.ref_name }}` (${{ github.sha }}).
             Install with Sideloadly or AltStore (they sign it with your Apple ID).

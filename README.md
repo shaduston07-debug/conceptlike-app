@@ -1,4 +1,4 @@
-# Draftwell
+# Inkfinity
 
 An infinite-canvas vector sketching app for iPad and Apple Pencil, built for designers, architects and illustrators.
 
@@ -14,19 +14,19 @@ An infinite-canvas vector sketching app for iPad and Apple Pencil, built for des
 - **History.** Unlimited undo/redo (two- and three-finger taps), plus a history scrubber with replay.
 - **Color.** HSV wheel, RGB/HSL sliders, hex, curated and custom palettes, recent colors, and touch-and-hold color picking.
 - **Object library.** Built-in symbols, plus your own saved objects.
-- **Import and export.** Import images and `.draftwell` files. Export PNG, JPG, SVG, vector or raster PDF, layered PSD, a ZIP of per-layer PNGs, and `.draftwell`.
+- **Import and export.** Import images and `.inkfinity` files. Export PNG, JPG, SVG, vector or raster PDF, layered PSD, a ZIP of per-layer PNGs, and `.inkfinity`.
 - **Gallery.** Projects, thumbnails, rename, duplicate, delete and autosave.
 - **Apple Pencil.** Pencil-only mode, palm rejection, hover preview, double-tap (eraser/last tool/color) and squeeze (Pencil Pro).
 - **Interface.** Dark mode, left-handed layout, a tool bar or a radial tool wheel, and hardware keyboard shortcuts.
 
 ## Getting the app on your iPad
 
-Every push builds an unsigned `Draftwell.ipa` with GitHub Actions (`.github/workflows/build-ipa.yml`). Download it from the latest **Release**, or from the workflow run's artifacts.
+Every push builds an unsigned `Inkfinity.ipa` with GitHub Actions (`.github/workflows/build-ipa.yml`). Download it from the latest **Release**, or from the workflow run's artifacts.
 
 Unsigned IPAs must be signed with your Apple ID when you install them:
 
 1. Install **Sideloadly** (Windows/macOS) or **AltStore** on your computer.
-2. Connect the iPad, drag `Draftwell.ipa` in, and sign in with your Apple ID.
+2. Connect the iPad, drag `Inkfinity.ipa` in, and sign in with your Apple ID.
 3. On the iPad, enable **Settings → Privacy & Security → Developer Mode**. Then trust the profile under **Settings → General → VPN & Device Management**.
 
 With a free Apple ID the app must be re-signed every 7 days. Your drawings are kept when you do.
@@ -43,5 +43,5 @@ The iOS shell lives in `ios/` (XcodeGen project). It serves the bundled web app 
 
 ```bash
 npm run build && rm -rf ios/web && cp -R dist ios/web
-cd ios && xcodegen generate && open Draftwell.xcodeproj
+cd ios && xcodegen generate && open Inkfinity.xcodeproj
 ```

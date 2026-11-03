@@ -1,4 +1,4 @@
-name: Draftwell
+name: Inkfinity
 options:
   bundleIdPrefix: app.draftwell
   deploymentTarget:
@@ -14,18 +14,18 @@ settings:
     ENABLE_BITCODE: NO
     CODE_SIGN_STYLE: Automatic
 targets:
-  Draftwell:
+  Inkfinity:
     type: application
     platform: iOS
     sources:
-      - path: Draftwell
+      - path: Inkfinity
       - path: web
         type: folder
         buildPhase: resources
     info:
-      path: Draftwell/Info.plist
+      path: Inkfinity/Info.plist
       properties:
-        CFBundleDisplayName: Draftwell
+        CFBundleDisplayName: Inkfinity
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         LSRequiresIPhoneOS: true
@@ -36,9 +36,9 @@ targets:
         UIViewControllerBasedStatusBarAppearance: true
         UIApplicationSupportsIndirectInputEvents: true
         ITSAppUsesNonExemptEncryption: false
-        NSPhotoLibraryAddUsageDescription: Draftwell saves exported drawings to your photo library.
-        NSPhotoLibraryUsageDescription: Draftwell imports photos so you can draw over them.
-        NSCameraUsageDescription: Draftwell can take a photo to use as a reference image.
+        NSPhotoLibraryAddUsageDescription: Inkfinity saves exported drawings to your photo library.
+        NSPhotoLibraryUsageDescription: Inkfinity imports photos so you can draw over them.
+        NSCameraUsageDescription: Inkfinity can take a photo to use as a reference image.
         UISupportedInterfaceOrientations~ipad:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationPortraitUpsideDown
@@ -46,5 +46,6 @@ targets:
           - UIInterfaceOrientationLandscapeRight
     settings:
       base:
+        # Kept from the first builds so installing a new IPA updates the app in place and keeps drawings.
         PRODUCT_BUNDLE_IDENTIFIER: app.draftwell.sketch
-        INFOPLIST_FILE: Draftwell/Info.plist
+        INFOPLIST_FILE: Inkfinity/Info.plist

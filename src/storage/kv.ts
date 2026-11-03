@@ -8,7 +8,7 @@ interface NativeBridge {
 
 function native(): NativeBridge | null {
   const w = window as any;
-  const h = w.webkit?.messageHandlers?.draftwell;
+  const h = w.webkit?.messageHandlers?.inkfinity;
   return h && typeof h.postMessage === 'function' ? h : null;
 }
 

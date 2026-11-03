@@ -14,7 +14,7 @@ import { serializeDoc } from '../storage/docs';
 import { visibleWorld } from '../render/background';
 import type { Rect } from '../core/geom';
 
-type Fmt = 'png' | 'jpg' | 'svg' | 'pdf' | 'psd' | 'layers' | 'draftwell';
+type Fmt = 'png' | 'jpg' | 'svg' | 'pdf' | 'psd' | 'layers' | 'inkfinity';
 const FORMATS: { v: Fmt; l: string; d: string }[] = [
   { v: 'png', l: 'PNG', d: 'Image with transparency' },
   { v: 'jpg', l: 'JPG', d: 'Compact image' },
@@ -22,11 +22,11 @@ const FORMATS: { v: Fmt; l: string; d: string }[] = [
   { v: 'pdf', l: 'PDF', d: 'Vector or raster document' },
   { v: 'psd', l: 'PSD', d: 'Layered Photoshop file' },
   { v: 'layers', l: 'Layers', d: 'ZIP of PNG per layer' },
-  { v: 'draftwell', l: 'Draftwell', d: 'Editable drawing file' },
+  { v: 'inkfinity', l: 'Inkfinity', d: 'Editable drawing file' },
 ];
 
 export function ExportPanel({ ed, onClose, viewSize }: { ed: Editor; onClose: () => void; viewSize: () => { w: number; h: number } }) {
-  const [fmt, setFmt] = useState<Fmt>(() => (localStorage.getItem('draftwell.exfmt') as Fmt) || 'png');
+  const [fmt, setFmt] = useState<Fmt>(() => ((localStorage.getItem('draftwell.exfmt') || 'png').replace('draftwell', 'inkfinity') as Fmt));
   const hasSel = ed.selection.size > 0;
   const [area, setAreaRaw] = useState<ExportArea>(hasSel ? 'selection' : ed.doc.page ? 'page' : ed.doc.artboard ? 'artboard' : 'drawing');
   const setArea = (a: ExportArea) => {
@@ -82,8 +82,8 @@ export function ExportPanel({ ed, onClose, viewSize }: { ed: Editor; onClose: ()
         const z = zip(files);
         return { name: fname('zip'), mime: 'application/zip', blob: new Blob([z as BlobPart], { type: 'application/zip' }) };
       }
-      case 'draftwell':
-        return { name: fname('draftwell'), mime: 'application/json', blob: new Blob([serializeDoc(doc)], { type: 'application/json' }) };
+      case 'inkfinity':
+        return { name: fname('inkfinity'), mime: 'application/json', blob: new Blob([serializeDoc(doc)], { type: 'application/json' }) };
     }
   };
 
@@ -120,7 +120,7 @@ export function ExportPanel({ ed, onClose, viewSize }: { ed: Editor; onClose: ()
         </div>
         <div class="hint">{FORMATS.find((f) => f.v === fmt)!.d}</div>
       </div>
-      {fmt !== 'draftwell' && (
+      {fmt !== 'inkfinity' && (
         <div class="sec">
           <h4>Area</h4>
           <Seg value={area} onChange={setArea} options={[
